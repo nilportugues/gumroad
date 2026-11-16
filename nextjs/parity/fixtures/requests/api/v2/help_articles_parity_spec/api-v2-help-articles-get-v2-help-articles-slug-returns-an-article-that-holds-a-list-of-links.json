@@ -1,0 +1,491 @@
+{
+  "version": 1,
+  "spec": "spec/requests/api/v2/help_articles_parity_spec.rb",
+  "example": "API v2 help articles GET /v2/help/articles/:slug returns an article that holds a list of links",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "f4c0b0e6dab03e87be5926f63de4838bfa03e183a4be6bac2f97edfe099f98b6895281dbeb522d130ec389143b5591543cb5ccf64781c528e961e403f196542c",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "oauth_access_tokens": {
+            "columns": {
+              "id": "int",
+              "resource_owner_id": "int",
+              "application_id": "int",
+              "token": "varchar",
+              "refresh_token": "varchar",
+              "expires_in": "int",
+              "revoked_at": "datetime",
+              "created_at": "datetime",
+              "scopes": "varchar",
+              "resource": "varchar",
+              "team_membership_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "resource_owner_id": 2,
+                "application_id": 1,
+                "token": "H17G4hbFmTcO49UCjlzZmLN9Woy0pIDu3yszu_s9yFs",
+                "refresh_token": null,
+                "expires_in": null,
+                "revoked_at": null,
+                "created_at": "<now>",
+                "scopes": "view_public",
+                "resource": null,
+                "team_membership_id": null
+              }
+            ]
+          },
+          "oauth_applications": {
+            "columns": {
+              "id": "int",
+              "name": "varchar",
+              "uid": "varchar",
+              "secret": "varchar",
+              "redirect_uri": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "owner_id": "int",
+              "owner_type": "varchar",
+              "affiliate_basis_points": "int",
+              "deleted_at": "datetime",
+              "scopes": "varchar",
+              "confidential": "tinyint",
+              "device_authorization_enabled": "tinyint",
+              "is_first_party_agent_app": "tinyint",
+              "mcp_dynamic_client": "tinyint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "app10",
+                "uid": "ImvapZyIA_yYYpeyOWwRyCpvCTyL9zaMZ_Cq6l0o9rI",
+                "secret": "beeIAU6K7In6Po2MXEfU2kjQzCxDLFG331BYqh_Qt24",
+                "redirect_uri": "https://foo",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "owner_id": 1,
+                "owner_type": "User",
+                "affiliate_basis_points": null,
+                "deleted_at": null,
+                "scopes": "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account",
+                "confidential": 0,
+                "device_authorization_enabled": 0,
+                "is_first_party_agent_app": 0,
+                "mcp_dynamic_client": 0
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar1e1c1bdb_37@gumroad.com",
+                "encrypted_password": "$2a$04$GhUdm.uG5uvgbGnXl8Qttew7o/rU4.7dNd2IWIosVuZi6ARrJmJNi",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "27.62.71.1",
+                "last_sign_in_ip": "182.190.169.84",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgarec253d11_38@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar0657a8b819",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "6223955488213",
+                "account_created_ip": "120.163.144.247",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "YMRHJ6KJZPFEYPXAY5FNKWB34AYU2BXO",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar29098553_39@gumroad.com",
+                "encrypted_password": "$2a$04$6B1LCzAtV6xirpRYgj5W5uqkFQ2aot0G01f/4WVUr/UgarkWCAfrK",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "26.153.27.115",
+                "last_sign_in_ip": "29.35.211.206",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgar926c0706_40@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar0810a90b20",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "3765658921634",
+                "account_created_ip": "190.35.211.187",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "JDXBCHXCLLSKFZZW4BSU4HUVEQWRRAJR",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 3,
+          "oauth_access_tokens": 2,
+          "oauth_applications": 2,
+          "refund_policies": 3,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/v2/help/articles/13-getting-paid",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "authorization": "Bearer H17G4hbFmTcO49UCjlzZmLN9Woy0pIDu3yszu_s9yFs",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=3600, private",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "sCzkj_URDbu6FqVF1GoyLndvhXsbdlEA6H-hcvB6c-ZA_uKEiNGGMAVyNiGiN1lNZY0QU3b4TK7MLu4TKYkfFQ",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "lRG4yKJVWNBtWXHF4Y4zU6qebS908MWmx36yBYfbbdSXzTpSRIArmwoS7bh0QJKIDYJrWuqmJRKDANCa3nts5uVSYkeGx8SBCHg26i7XrQqwSoS4kdllXkO5FxtatuQGcQLuMjjD07aT5Jx/UX2VrjDDOhSfheGMw8tAY+ij69b88NGa5H0vjbJpJ3RuYKxUNUB8RLBphDWEBg8SkXUuIKjkS3sl39bFJCtTHJHDvS3no0mi6Fg/LWuWt8Qn88+iOjiF53o78E2jDo44qCeVOrJA58PsYCpF1v0n+GqbCIfsgZpWWj262tEGQe3GCRDRDgTpPEYI2ErWFtOQ7FebivesqMsFY9VvKGYT2VYmlmitHFjA1EV4eQuxhcmJrL4IYMu8--WM/JC5HLsaHATyGY--n3mkImGg77topFYqLVy3Zg==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "success": true,
+          "help_article": {
+            "slug": "13-getting-paid",
+            "title": "Getting paid by Gumroad",
+            "description": "In this article: Payout modes Get paid to your bank account Get paid to Stripe Get paid to PayPal Other payout modes Stripe verification process Payout schedule",
+            "category": "Get paid",
+            "audience": "creator",
+            "url": "http://app.test.gumroad.com:31337/help/article/13-getting-paid",
+            "content": "In this article:\n\nPayout modes\n\nGet paid to your bank account\n\nGet paid to PayPal\n\nVerification process\n\nPayout schedule\n\nYour payout day\n\nInstant payouts\n\nEnable payments via PayPal\n\nThe account review process\n\nPayout modes\n\nNote: How your buyers pay you and how you get paid out are two separate things. Gumroad accepts many payment methods at checkout, including cards, PayPal, and local methods such as UPI in India, and which ones a buyer sees depends on where the buyer is. Your payout is not affected by any of that. In general, sales land in your Gumroad balance and are then paid out to you the one way you have set up below, in your own payout currency. The exception is PayPal sales when you have connected your own PayPal account, which are credited to you at the time of sale instead.\n\nWe support direct bank deposits in the local currency for most countries. For countries where bank deposits are not available, we offer PayPal transfers as the only payment option.\n\nWe do not support alternative payout modes like Payoneer, Wise, check, money order, wire transfer, etc. If your country is not supported by direct bank deposits or PayPal, then unfortunately, we have no way to pay you out for now.\n\nTo get paid for your sales, start by filling out your Payments Settings.\n\nGet paid to your bank account\n\nNote: Unpaid amounts on a country-specific connected account cannot move to a new country's account, so changing payout country (or switching payout method in a way that needs a new connected account) forfeits those amounts. Amounts in Gumroad's own payment accounts are not forfeited. If we can transfer the money, we will. The confirmation names the amount and asks you to type \"I understand\". Wait for any payout in progress to finish first. See Section 11.4 of the Terms of Service.\n\nWe currently support bank payouts in the following countries:\n\nCountry\nPayout Currency\nCountry\nPayout Currency\n\nAlbania\nALL (min 3,000)\nAlgeria\nDZD\n\nAngola\nAOA (min 23,000)\nAntigua and Barbuda\nXCD\n\nArgentina\nARS (min 4,600)\nArmenia\nAMD (min 12,100)\n\nAustralia\nAUD\nAustria\nEUR\n\nAzerbaijan\nAZN (min 50)\nBahamas\nBSD\n\nBahrain\nBHD\nBangladesh\nBDT\n\nBelgium\nEUR\nBenin\nXOF\n\nBhutan\nBTN (min 2,500)\nBolivia\nBOB (min 200)\n\nBosnia and Herzegovina\nBAM (min 50)\nBotswana\nBWP\n\nBrunei\nBND\nBulgaria\nEUR\n\nCambodia\nKHR (min 123,000)\nCanada\nCAD\n\nChile\nCLP (min 23,000)\nColombia\nCOP (min 140,000)\n\nCosta Rica\nCRC\nCôte d'Ivoire\nXOF\n\nCroatia\nEUR\nCyprus\nEUR\n\nCzech Republic\nCZK\nDenmark\nDKK\n\nDominican Republic\nDOP\nEcuador\nUSD\n\nEgypt\nEGP\nEl Salvador\nUSD (min 30)\n\nEstonia\nEUR\nEthiopia\nETB\n\nFinland\nEUR\nFrance\nEUR\n\nGabon\nXAF\nGambia\nGMD (min 1,900)\n\nGermany\nEUR\nGhana\nGHS\n\nGibraltar\nGBP\nGreece\nEUR\n\nGuatemala\nGTQ\nGuyana\nGYD (min 6,300)\n\nHong Kong\nHKD\nHungary\nHUF\n\nIceland\nEUR\nIndia\nINR\n\nIndonesia\nIDR\nIreland\nEUR\n\nIsrael\nILS\nItaly\nEUR\n\nJamaica\nJMD\nJapan\nJPY\n\nJordan\nJOD\nKazakhstan\nKZT\n\nKenya\nKES\nKorea\nKRW (min 40,000)\n\nKuwait\nKWD\nLaos\nLAK (min 516,000)\n\nLatvia\nEUR\nLiechtenstein\nCHF\n\nLithuania\nEUR\nLuxembourg\nEUR\n\nMacao\nMOP\nMadagascar\nMGA (min 132,300)\n\nMalaysia\nMYR (min 133)\nMalta\nEUR\n\nMauritius\nMUR\nMexico\nMXN\n\nMoldova\nMDL (min 500)\nMonaco\nEUR\n\nMongolia\nMNT (min 105,000)\nMorocco\nMAD\n\nMozambique\nMZN (min 1,700)\nNamibia\nNAD (min 550)\n\nNetherlands\nEUR\nNew Zealand\nNZD\n\nNiger\nXOF\nNigeria\nNGN\n\nNorth Macedonia\nMKD (min 1,500)\nNorway\nNOK\n\nOman\nOMR\nPakistan\nPKR\n\nPanama\nUSD (min 50)\nParaguay\nPYG (min 210,000)\n\nPeru\nPEN\nPhilippines\nPHP\n\nPoland\nPLN\nPortugal\nEUR\n\nQatar\nQAR\nRomania\nRON\n\nRwanda\nRWF\nSaint Lucia\nXCD\n\nSan Marino\nEUR\nSaudi Arabia\nSAR\n\nSenegal\nXOF\nSerbia\nRSD (min 3,000)\n\nSingapore\nSGD\nSlovakia\nEUR\n\nSlovenia\nEUR\nSouth Africa\nZAR\n\nSpain\nEUR\nSri Lanka\nLKR\n\nSweden\nSEK\nSwitzerland\nCHF\n\nTaiwan\nTWD (min 800)\nTanzania\nTZS\n\nThailand\nTHB (min 600)\nTrinidad and Tobago\nTTD\n\nTunisia\nTND\nTurkey\nTRY\n\nUAE (Business accounts)\nAED\nUK\nGBP\n\nUruguay\nUYU\nUzbekistan\nUZS (min 343,000)\n\nVietnam\nVND\n\nNote: Countries showing \"(min X)\" have a higher minimum payout threshold than the standard $100 USD requirement.\n\nWe can only pay out to a local bank account and in your local currency. We cannot pay you out in USD if it is not listed above as your country's payout currency. All currency conversions happen based on the exchange rates at the time of sale, not at the time of the payout. These are typically mid-market rates that you can estimate here.\n\nFor prompt payouts, please ensure that you have the following for the country you select:\n\nA valid, government-issued photo ID\n\nProof of residence in that country, or a business registered there\n\nIf you sell as a business, your bank account must be in the country where your business is registered. For example, a US LLC needs a US bank account. You can live in another country and use your real home address.\n\nDepending on your country, bank payouts can take 2-7 business days to process, and can be delayed around bank holidays.\n\nGet paid to PayPal\n\nIf bank payouts aren't supported in your country, we will pay you via PayPal. You just need an individual or business PayPal account without any restrictions.\n\nAll PayPal payouts are processed in USD and usually arrive within 1–3 business days.\n\nPayPal payouts have a 2% payout fee.\n\nNote: PayPal does not allow accounts registered in some countries to receive money, even though we can offer PayPal there. Where we also do not support bank payouts — Zambia, Syria, Russia, Iraq and a number of others — there is currently no way for us to pay out to a creator in that country unless their PayPal account is registered elsewhere. We show a note on your payouts page and in your payout settings when this applies to your country, and if a payout is rejected for this reason we email you and stop retrying it, because the same rejection comes back every time. Your balance stays on your account. To get paid you need a PayPal account registered in a country PayPal can pay into, or a bank account if we pay out to banks in your country; see payout delays for the full steps.\n\nVerification process\n\nOur payment processor, Stripe, requires additional information to verify the identity of the account holder after a certain amount of time has passed and sales accrued. This is a standard practice in the financial industry and is part of their Know Your Customer (KYC) obligations.\n\nNote: In rare cases, Stripe makes a final decision to reject an account. If that happens, we email you once to let you know, verification requests stop, and any remaining balance of $1 or more is paid out automatically even if it is below the usual $100 minimum, unless we are separately holding your balance for another reason, such as an open review of your account, suspected fraud, or misleading or deceptive marketing, in which case it stays held until that is resolved. Your payments settings page shows your account status. See this article for details.\n\nID verification\n\nYou can learn the correct documents needed for ID verification for your specific location here.\n\nBefore you upload your ID\n\nUse a color photo or scan. You can take it with a phone, webcam, or scanner.\n\nFor a driver's license or identity card, upload images of both the front and back of the ID.\n\nUse a JPEG or PNG file.\n\nDo not upload a PDF.\n\nAddress verification\n\nYou can learn the correct documents needed for address verification for your specific location here.\n\nIf your registered address is a P.O. Box: Stripe does not accept a P.O. Box as the address on the account, so your payout settings have to carry a different address. If the only address printed on your documents is that P.O. Box, the document will keep being rejected for not matching the account, and uploading it again will not change the outcome. Email support@gumroad.com and we will work out with you which address and document can be used.\n\nSocial Security number (SSN)\n\nSSN is required for US sellers. The name and date of birth on your SSN must match exactly with the information filled in your Payments Settings. Refer to your social security card to see how your name is formatted, and enter your name in the settings exactly as it is on the card. If you have a middle name, you can add it to the First Name field on the settings page.\n\nIf you don't have your Social Security card, or if you believe you've entered the correct information but still receive an error, please contact the Social Security Administration. You can request a copy of your card or update your name here: https://www.ssa.gov/ssnumber/\n\nPayout schedule\n\n⚠️ You need a minimum balance of $100 USD to receive a payout. Some countries have higher local currency minimums—see the \"(min X)\" values in the table above.\n\nYou can choose to get paid daily, weekly, monthly, or quarterly, and set your own payout threshold. Daily payouts are only available for US users with eligible bank accounts and at least 4 prior payouts. They ride the same rail as instant payouts, so the 60-day account requirement described there applies to them as well. You can also pause and resume payouts anytime.\n\nPayouts include sales made through the previous Friday (UTC). On the weekly, monthly, and quarterly schedules, a sale has a minimum 7-day holding period in your Gumroad balance before it becomes eligible for payout. Daily and instant payouts do not wait 7 days: they pay whatever balance Stripe has already made available to your account. A daily payout covers sales made through the previous day (UTC); an instant payout you trigger yourself can include sales from the same day.\n\nYou can download a CSV report for each payout from the Payouts dashboard, which includes a breakdown of all Gumroad fees and customer data.\n\nYour payout day\n\nPayouts do not all go out on the same weekday. Your payout day depends on how you get paid: whether you get paid to a bank account or to PayPal, and which country your bank account is in.\n\nPayout day\nHow you get paid\n\nTuesday\nBank accounts in any country not listed below, for example the Philippines, India, Japan, Mexico, Nigeria, Saudi Arabia, South Africa, and Turkey\n\nWednesday\nEuro bank accounts, and bank accounts in Australia, Bulgaria, Canada, Czechia, Denmark, Gibraltar, Hungary, Liechtenstein, Norway, Poland, Singapore, South Korea, Sweden, Switzerland, the UAE, and the UK\n\nThursday\nUS bank accounts and US debit cards\n\nFriday\nPayPal, and creators paid through their own connected Stripe account\n\nYour payout day does not change which sales a payout covers. Every payout still includes sales made through the previous Friday (UTC), so a Tuesday payout on the 28th covers the same sales as a Friday payout on the 31st of that same week.\n\nThe date shown on your Payouts dashboard is your own payout day, so that is the day to expect the money to be sent. Bank transfers can then take a few business days to land, depending on your bank.\n\nIf you have set your payouts to monthly or quarterly, they still go out on your payout day, just in the month or quarter you chose. Daily payouts are the exception: those are sent every day rather than on one weekday.\n\nInstant payouts\n\nCreators from the US can get paid within minutes for amounts up to $10K and a 3% fee. Instant payouts are available only to creators from the US who have completed at least one payout and whose Stripe account has been processing with Gumroad for at least 60 days.\n\nIf you also get paid through your own connected Stripe account, that account needs to have been connected for at least 60 days as well. Replacing a Stripe account you already had does not start those 60 days again, but connecting a rail for the first time does.\n\nIf you are eligible for an instant payout, you will see the option to get paid instantly on your Payouts dashboard.\n\nInstant payouts are not subject to the 7-day holding period that applies on the weekly, monthly, and quarterly schedules. What limits an instant payout is how much of your balance Stripe has already settled, so a recent sale can be included as soon as those f\n\n[Article truncated. Read the rest at http://app.test.gumroad.com:31337/help/article/13-getting-paid]"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

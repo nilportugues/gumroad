@@ -1,0 +1,852 @@
+{
+  "secretKeyBase": "healthcheck-envelope-golden",
+  "sessionKey": "_gumroad_app_session_test",
+  "cases": [
+    {
+      "name": "index on the app host",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck",
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "etag": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\"",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "healthcheck"
+      }
+    },
+    {
+      "name": "index on the instance IP",
+      "request": {
+        "method": "GET",
+        "url": "http://10.0.34.160/healthcheck",
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "etag": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\"",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "healthcheck"
+      }
+    },
+    {
+      "name": "an action answering 503",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance",
+        "headers": {}
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "an Accept header the request does not look like a browser's",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/stripe_balance",
+        "headers": {
+          "accept": "*/*"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Accept, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "Stripe balance: topup required"
+      }
+    },
+    {
+      "name": "a browser's Accept header",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/stripe_balance",
+        "headers": {
+          "accept": "text/html,application/xhtml+xml,*/*;q=0.8"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "Stripe balance: topup required"
+      }
+    },
+    {
+      "name": "a foreign referrer",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance",
+        "headers": {
+          "referer": "https://www.Google.com/search?q=gumroad"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "signup_referrer": "www.google.com",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "a referrer on the root domain",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance",
+        "headers": {
+          "referer": "https://seller.test.gumroad.com:31337/l/abc"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "signup_referrer": "seller.test.gumroad.com",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "an _sref param",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance?_sref=newsletter",
+        "headers": {}
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "signup_referrer": "newsletter",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "a visitor that already has a guid",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance",
+        "headers": {
+          "cookie": "_gumroad_guid=11111111-2222-3333-4444-555555555555"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "a visitor with a session",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck/paypal_balance",
+        "headers": {
+          "cookie": "_gumroad_app_session_test=TzzgOQOkA22LrrfYNbg72rScq91w2sGbQjZlmkvdUAVTYcAaFqmFqrfDQ5R1G%2FDesKHP1kll%2FfW4p90fOWnGo%2BodLVnLeN4i6yu9AJi01%2BAEmvUcBRE5eR%2FE2bK7FByqs2yG%2FQMDnXbox8gG1r0%2BSpay1CdozUIvBVgXU%2BqsvgPRIsgW5F%2BVVbcjzYr0iGyvGWJNb4NbuBMTsKWD1%2F5YJVkCxUAsEPTxIcEira1rIqJB%2F5R0YbhzftPX60tkMraDEv%2F0W7pLbWYV9s4%2F0SLSNLVFfWZIp89OPUk1D6WWQ%2BjbZh16UzbrgdffgwwDDNzffFqn2bqynu3vDlio0Of%2FUhMWk%2BUcisEmmWeLYIZcvx9NPU6rJ55OsM7%2FTDE%2F5L7I2nUgIby8RGLHHI6seXQ4Duio3fo3gR%2Fh9J6XOhkaobBcqfI%3D--55YwWQeGjtGgXDk2--HDyWu6CZ6CPck5h%2BX%2FP%2FQA%3D%3D"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "_csrf_token": "<request csrf token>",
+              "signup_referrer": "earlier.example.com",
+              "cart_hint": "kept",
+              "recommender_model_name": "sales"
+            }
+          }
+        ],
+        "body": "PayPal balance: topup required"
+      }
+    },
+    {
+      "name": "a HEAD request",
+      "request": {
+        "method": "HEAD",
+        "url": "http://app.test.gumroad.com:31337/healthcheck",
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "etag": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\"",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": ""
+      }
+    },
+    {
+      "name": "If-None-Match with the current ETag",
+      "request": {
+        "method": "GET",
+        "url": "http://app.test.gumroad.com:31337/healthcheck",
+        "headers": {
+          "if-none-match": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\""
+        }
+      },
+      "response": {
+        "status": 304,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-security-policy": "<present>",
+          "etag": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\"",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=gumroad.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": ""
+      }
+    },
+    {
+      "name": "a host with a subdomain redirect",
+      "request": {
+        "method": "GET",
+        "url": "http://old-seller.example.com/healthcheck/payouts",
+        "headers": {},
+        "redirectConfig": "old-seller.example.com/healthcheck/payouts=https://new-seller.example.com/landing"
+      },
+      "response": {
+        "status": 302,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-security-policy": "<present>",
+          "content-type": "text/html; charset=utf-8",
+          "location": "https://new-seller.example.com/landing",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=example.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": ""
+      }
+    },
+    {
+      "name": "a subdomain redirect does not apply to index",
+      "request": {
+        "method": "GET",
+        "url": "http://old-seller.example.com/healthcheck",
+        "headers": {},
+        "redirectConfig": "old-seller.example.com/healthcheck/payouts=https://new-seller.example.com/landing"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-security-policy": "<present>",
+          "content-type": "text/plain; charset=utf-8",
+          "etag": "W/\"b1d5226fdc3d7e029e8bac2aaa3ba0b3\"",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": [
+          {
+            "name": "_gumroad_guid",
+            "attributes": [
+              "domain=example.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "value": "<uuid>"
+          },
+          {
+            "name": "XSRF-TOKEN",
+            "attributes": [
+              "path=/",
+              "samesite=lax",
+              "HttpOnly"
+            ],
+            "value": "<masked csrf token>"
+          },
+          {
+            "name": "_gumroad_app_session_test",
+            "attributes": [
+              "domain=example.com",
+              "path=/",
+              "expires=<now+87672h>",
+              "httponly",
+              "samesite=lax"
+            ],
+            "session": {
+              "session_id": "<hex32>",
+              "recommender_model_name": "sales",
+              "_csrf_token": "<new csrf token>"
+            }
+          }
+        ],
+        "body": "healthcheck"
+      }
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "spec": "spec/requests/internal_api_parity_spec.rb",
+  "example": "Internal API on the API host POST /internal/grmc/webhook enqueues the callback job for a signed notification",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "9eca9341f09cebad46784962e75bf474b568dbbbc8b6caca4fe2a1a202f9a67352a6f26aa84f1e7b93fe42b3f14726104ca09aa6215890c4107038f2846785aa",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/internal/grmc/webhook",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/json",
+          "grmc-signature": "t=1793586336790,v0=3abb98d9150906d6fe320c941cb486b4c315fdfaf49b0a1abe3cf74cc7aa561f",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"job_id\":\"job-1\",\"status\":\"success\",\"nested\":{\"ids\":[1,2]}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "72NKirR7iQHO1rpk7PITlFQ1LufOe3n9iM8ygOoV74jzKI33R6sKN-7OLZHBo7fZJOA5GwEc0HoO94gb1Z4VfQ",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "hzVS79x6rnPSY9Uu6cdTzQXyxArFhwIDX39fa24BWGsyjrImTpHKGiGrqFVi9R8vQ4dfth7rP+nZe0parkH9OFfo9PIHO4bHOR7F1SP0YBi6w8h9od0ya74/SvtBZp4ly0k/yut/+HqQ9E+wRU5dnl7oQMnE0yGR8m6lkCQJTu/YReuflO+O1qlgKWn5H+v3yW/XJUsbrndJYwyu6gpdYvlrtFunfjA3S1v30ZKD49WQlQE1mO5Iho2yGJmdPNPnLWSwgL9H2qyKefgxJrj7mHVNrJCtTRn2dgY5KsMvb9Pl4rTT+r6CLaFR3xzKt2Cv0vHXlhBz0MRisb43bMAY80t8CjGFszgxo2Eu9e9uc35fOFcVEKjxhHic8JoDzQqXc/ZU--ZnuodCwtM7VvNzKA--wPHSq6SJG1376/BIQu80Hw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [
+        {
+          "class": "HandleGrmcCallbackJob",
+          "args": [
+            {
+              "job_id": "job-1",
+              "status": "success",
+              "nested": {
+                "ids": [
+                  1,
+                  2
+                ]
+              }
+            }
+          ],
+          "queue": "default"
+        }
+      ],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

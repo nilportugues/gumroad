@@ -1,0 +1,5583 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no plan changes",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change due in a week",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change effective exactly seven days from now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-11",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-11",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-11",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change effective eight days from now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-12",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change effective in the past",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-10-01",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-10-01",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-10-01",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change with no effective date",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change that is not for a product price change",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              0,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change already applied",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              3,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a deleted plan change",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a subscriber already notified",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim made an hour ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T11:30:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T11:30:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "claim-1",
+              {
+                "$time": "2026-11-04T11:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim made two and a half hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T10:00:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T10:00:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "claim-1",
+              {
+                "$time": "2026-11-04T10:00:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim made just over three hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T09:30:44.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T09:30:44.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim made exactly three hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T09:30:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                {
+                  "$time": "2026-11-04T09:30:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim id without a claim time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "claim-1",
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a claim time without a claim id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a cancelled subscription",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T12:29:45.123000Z"
+              },
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a subscription cancelled in the future",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-05T12:30:45.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-05T12:30:45.000000Z"
+              },
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a failed subscription",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              {
+                "$time": "2026-11-04T12:29:45.123000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "an ended subscription",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:29:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "a plan change whose subscription is gone",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'alive?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                9,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 9",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              9,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "three plan changes, the middle one not eligible",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ],
+              [
+                3,
+                3,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` IN (1, 2, 3)",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                1,
+                1,
+                null,
+                {
+                  "$time": "2026-11-04T12:29:45.123000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              [
+                3,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 3 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                3,
+                3,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000003', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 3",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000004\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[3,\"00000000-0000-4000-8000-000000000003\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ],
+            [
+              2,
+              2,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ],
+            [
+              3,
+              3,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000003",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              1,
+              null,
+              {
+                "$time": "2026-11-04T12:29:45.123000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              3,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "two plan changes of one subscription",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` = 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 2 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000003', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000004\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[2,\"00000000-0000-4000-8000-000000000003\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":25,\"queue\":\"low\",\"backtrace\":true,\"wrapped\":\"SendMembershipPriceUpdateEmailJob\",\"args\":[{\"job_class\":\"SendMembershipPriceUpdateEmailJob\",\"job_id\":\"00000000-0000-4000-8000-000000000002\",\"provider_job_id\":null,\"queue_name\":\"low\",\"priority\":null,\"arguments\":[1,\"00000000-0000-4000-8000-000000000001\"],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000001",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ],
+            [
+              2,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              "00000000-0000-4000-8000-000000000003",
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              }
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    },
+    {
+      "name": "an enqueue that fails",
+      "error": {
+        "class": "RuntimeError",
+        "message": "queue is down"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`deleted_at` IS NULL AND ((`subscription_plan_changes`.`flags` & 2 = 0)) AND ((`subscription_plan_changes`.`flags` & 1 = 1)) AND (effective_on <= '2026-11-11') AND `subscription_plan_changes`.`notified_subscriber_at` IS NULL ORDER BY `subscription_plan_changes`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `subscriptions`.* FROM `subscriptions` WHERE `subscriptions`.`id` IN (1, 2)",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "user_id",
+              "cancelled_at",
+              "failed_at",
+              "created_at",
+              "updated_at",
+              "flags",
+              "user_requested_cancellation_at",
+              "charge_occurrence_count",
+              "ended_at",
+              "last_payment_option_id",
+              "credit_card_id",
+              "deactivated_at",
+              "free_trial_ends_at",
+              "seller_id",
+              "token",
+              "token_expires_at",
+              "business_vat_id",
+              "stripe_mandate_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                1,
+                1,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = '00000000-0000-4000-8000-000000000001', `subscription_plan_changes`.`notification_claimed_at` = '2026-11-04 12:30:45.123000' WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `subscription_plan_changes`.* FROM `subscription_plan_changes` WHERE `subscription_plan_changes`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "id",
+              "subscription_id",
+              "base_variant_id",
+              "recurrence",
+              "perceived_price_cents",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "quantity",
+              "flags",
+              "effective_on",
+              "notified_subscriber_at",
+              "notification_claim_id",
+              "notification_claimed_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                "monthly",
+                500,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                1,
+                "2026-11-10",
+                null,
+                "00000000-0000-4000-8000-000000000001",
+                {
+                  "$time": "2026-11-04T12:30:45.123000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subscription_plan_changes` SET `subscription_plan_changes`.`notification_claim_id` = NULL, `subscription_plan_changes`.`notification_claimed_at` = NULL WHERE `subscription_plan_changes`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "subscription_plan_changes": {
+          "fields": [
+            "id",
+            "subscription_id",
+            "base_variant_id",
+            "recurrence",
+            "perceived_price_cents",
+            "deleted_at",
+            "created_at",
+            "updated_at",
+            "quantity",
+            "flags",
+            "effective_on",
+            "notified_subscriber_at",
+            "notification_claim_id",
+            "notification_claimed_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              2,
+              null,
+              "monthly",
+              500,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              1,
+              1,
+              "2026-11-10",
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "subscriptions": {
+          "fields": [
+            "id",
+            "link_id",
+            "user_id",
+            "cancelled_at",
+            "failed_at",
+            "created_at",
+            "updated_at",
+            "flags",
+            "user_requested_cancellation_at",
+            "charge_occurrence_count",
+            "ended_at",
+            "last_payment_option_id",
+            "credit_card_id",
+            "deactivated_at",
+            "free_trial_ends_at",
+            "seller_id",
+            "token",
+            "token_expires_at",
+            "business_vat_id",
+            "stripe_mandate_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              1,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "SendMembershipsPriceUpdateEmailsJob",
+      "args": []
+    }
+  ]
+}

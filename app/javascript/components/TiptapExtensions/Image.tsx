@@ -171,7 +171,7 @@ export const uploadImages = ({
 
 const ImageNodeView = ({ node, editor, getPos }: NodeViewProps) => {
   const [hasFocus, setHasFocus] = React.useState(false);
-  const nodeRef = React.useRef(null);
+  const nodeRef = React.useRef<HTMLElement | null>(null);
 
   const { attrs } = node;
 

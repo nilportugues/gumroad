@@ -6,7 +6,7 @@ import { useGlobalEventListener } from "$app/components/useGlobalEventListener";
 
 // `els` is a white-list of elements that should receive clicks without triggering `callback`
 export const useOnOutsideClick = (
-  elsAndRefs: (HTMLElement | null | React.RefObject<HTMLElement>)[],
+  elsAndRefs: (HTMLElement | null | React.RefObject<HTMLElement | null>)[],
   callback: () => void,
 ) => {
   useGlobalEventListener("mouseup", (evt) => {

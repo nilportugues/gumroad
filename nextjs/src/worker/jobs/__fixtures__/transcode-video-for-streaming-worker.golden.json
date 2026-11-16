@@ -1,0 +1,984 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a video file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a video file among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "https://example.com/files/2.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find ProductFile with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the file class named",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "ProductFile"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a deleted file with the class named",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "ProductFile"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a link",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "Link"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a link that does not exist",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        9,
+        "Link"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a transcoder and the allowed-when-processing flag",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "ProductFile",
+        "mediaconvert",
+        true
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the transcoder named",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "ProductFile",
+        "grmc"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the file id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "https://example.com/files/2.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        "2"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file id of zero",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find ProductFile with 'id'=0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find ProductFile without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "https://example.com/files/1.mp4",
+                "mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find ProductFile with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "another class",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Installment with 'id'=1"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `installments`.* FROM `installments` WHERE `installments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "message",
+              "url",
+              "created_at",
+              "updated_at",
+              "name",
+              "published_at",
+              "deleted_at",
+              "flags",
+              "seller_id",
+              "installment_type",
+              "json_data",
+              "customer_count",
+              "workflow_id",
+              "call_to_action_text",
+              "call_to_action_url",
+              "cover_image_url",
+              "base_variant_id",
+              "slug",
+              "installment_events_count"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "Installment"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1..4)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "five arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 5, expected 1..4)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TranscodeVideoForStreamingWorker",
+      "args": [
+        1,
+        "ProductFile",
+        "grmc",
+        false,
+        1
+      ],
+      "hands_back": false
+    }
+  ]
+}

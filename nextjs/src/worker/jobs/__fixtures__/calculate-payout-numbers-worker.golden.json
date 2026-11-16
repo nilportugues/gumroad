@@ -1,0 +1,764 @@
+{
+  "cases": [
+    {
+      "name": "a float sum",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "1234567",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 123456789.0
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "an integer sum",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "123456",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 12345600
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a sum under one dollar",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 99.0
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a fractional dollar amount truncates",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "1999",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 199999.0
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a fractional cent sum",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 150.7
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "nothing sold",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 0.0
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a negative sum truncates toward zero",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "-1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": -150.0
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a fractional negative sum under one dollar truncates to zero",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": -99.5
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a sum just under the safe integer limit",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "90071992547409",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 9007199254740991
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "an integer sum past 2**53",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "1000000000000000000000000",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 100000000000000000000000000
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a null sum",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '/' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": null
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a string sum",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '/' for an instance of String"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": "12345"
+            }
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "an answer without aggregations",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "an answer without the sum",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {}
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a sum aggregation without a value",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '/' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "aggregations": {
+            "total_made": {}
+          }
+        }
+      ],
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a Monday morning in Los Angeles",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-11-02T00:00:00-08:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-08T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1794211200.0
+    },
+    {
+      "name": "a Sunday night in Los Angeles, already Monday in UTC",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1794211199.0
+    },
+    {
+      "name": "the week after daylight saving time ends",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-10-26T00:00:00-07:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-01T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1793793600.0
+    },
+    {
+      "name": "the week daylight saving time starts",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2027-03-08T00:00:00-08:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2027-03-14T23:59:59-07:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1805284800.0
+    },
+    {
+      "name": "a new year",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-12-21T00:00:00-08:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-12-27T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1798977600.0
+    },
+    {
+      "name": "a leap day",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2028-02-21T00:00:00-08:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2028-02-27T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1835611200.0
+    },
+    {
+      "name": "a Sunday in Los Angeles",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "homepage:prev_week_payout_usd": {
+          "type": "string",
+          "value": "50",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gte\":\"2026-11-02T00:00:00-08:00\"}}},{\"range\":{\"created_at\":{\"lte\":\"2026-11-08T23:59:59-08:00\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"total_made\":{\"sum\":{\"field\":\"price_cents\"}}}}"
+        }
+      ],
+      "job": "CalculatePayoutNumbersWorker",
+      "args": [],
+      "es_bodies": [
+        {
+          "hits": {
+            "hits": []
+          },
+          "aggregations": {
+            "total_made": {
+              "value": 5000.0
+            }
+          }
+        }
+      ],
+      "now": 1794772800.0
+    }
+  ]
+}

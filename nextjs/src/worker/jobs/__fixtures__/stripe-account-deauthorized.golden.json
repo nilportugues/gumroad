@@ -1,0 +1,4886 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no account matches the Stripe account id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "a Connect account of a seller with the link flag on",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical",
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "a Connect account of a seller with the link flag off",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "a Gumroad-managed account loses its meta",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"false\"},\"other\":\"kept\"}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"false\"},\"other\":\"kept\"}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{},\\\"other\\\":\\\"kept\\\"}', `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an account with no json_data",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{}}', `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an account already deleted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an account that is not alive at the processor is still deleted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "the newest of two alive accounts with the same Stripe id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 2",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an alive account behind a deleted one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical",
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "the account id in user_id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical",
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": null,
+          "user_id": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "user_id wins over account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical",
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_other",
+          "user_id": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "a blank user_id falls back to account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `bank_accounts`.* FROM `bank_accounts` WHERE `bank_accounts`.`user_id` = 1 AND `bank_accounts`.`deleted_at` IS NULL ORDER BY `bank_accounts`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "bank_number",
+              "account_number",
+              "state",
+              "created_at",
+              "updated_at",
+              "account_number_last_four",
+              "account_holder_full_name",
+              "deleted_at",
+              "type",
+              "branch_code",
+              "account_type",
+              "stripe_bank_account_id",
+              "stripe_fingerprint",
+              "stripe_connect_account_id",
+              "country",
+              "credit_card_id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 1 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`id` != 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"MerchantRegistrationMailer\",\"account_deauthorized_to_user\",\"deliver_now\",{\"args\":[1,\"stripe\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[1],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:47361ed445854ecbdb39752d3269e132\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical",
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:47361ed445854ecbdb39752d3269e132:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:47361ed445854ecbdb39752d3269e132",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1",
+          "user_id": "  "
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an account of a seller that does not exist fails after the delete",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'merchant_migration_enabled?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                9,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"lock_ttl\":21600,\"on_conflict\":{\"client\":\"log\"},\"args\":[9],\"class\":\"RefreshMerchantAccountProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:0122b1e0e7d6f63d8596b79abe3db101\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:0122b1e0e7d6f63d8596b79abe3db101": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:0122b1e0e7d6f63d8596b79abe3db101:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:0122b1e0e7d6f63d8596b79abe3db101",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an account with no seller fails after the delete",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'merchant_migration_enabled?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45', `merchant_accounts`.`deleted_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"true\"}}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{}}', `merchant_accounts`.`charge_processor_verified_at` = NULL, `merchant_accounts`.`charge_processor_deleted_at` = '2026-11-04 12:30:45', `merchant_accounts`.`charge_processor_alive_at` = NULL WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "an event with no account id is the platform account's",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "account.application.deauthorized",
+          "account": null
+        }
+      ],
+      "merchant_migration": false
+    }
+  ]
+}

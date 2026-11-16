@@ -74,7 +74,7 @@ class ElasticsearchSetup
     # Ensure indices are ready: same settings, same mapping, zero documents
     models = [Link, Purchase, Installment, ConfirmedFollowerEvent, ProductPageView, AudienceMember]
     models.each do |model|
-      model.index_name("#{model.name.parameterize}-test")
+      model.index_name("#{ENV["ES_TEST_INDEX_PREFIX"]}#{model.name.parameterize}-test")
     end
 
     all_mappings_and_settings = EsClient.indices.get(index: models.map(&:index_name), ignore_unavailable: true)

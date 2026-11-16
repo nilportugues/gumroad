@@ -1,0 +1,1663 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a payment that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a payment that does not exist among others",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a payment without an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a failed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a returned payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "returned",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a cancelled payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "cancelled",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a creating payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "creating",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a processing payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a completed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a reversed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "reversed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a unclaimed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "unclaimed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a failed payment among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_2",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a payment id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a payment id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a payment id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a payment id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "one argument too many",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 2, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "exhausted: a payment that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        9
+      ],
+      "hook": true,
+      "hands_back": false
+    },
+    {
+      "name": "exhausted: a payment without an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hook": true,
+      "hands_back": false
+    },
+    {
+      "name": "exhausted: a failed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hook": true,
+      "hands_back": true
+    },
+    {
+      "name": "exhausted: a completed payment with an internal transfer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1
+      ],
+      "hook": true,
+      "hands_back": true
+    },
+    {
+      "name": "exhausted: a payment among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_2",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        2
+      ],
+      "hook": true,
+      "hands_back": true
+    },
+    {
+      "name": "exhausted: a payment id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        null
+      ],
+      "hook": true,
+      "hands_back": false
+    },
+    {
+      "name": "exhausted: a payment id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        "1"
+      ],
+      "hook": true,
+      "hands_back": true
+    },
+    {
+      "name": "exhausted: a payment id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "tr_1",
+                "usd",
+                0,
+                null,
+                "account_closed",
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        1.0
+      ],
+      "hook": true,
+      "hands_back": true
+    },
+    {
+      "name": "exhausted: a payment id as a word",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [
+        "one"
+      ],
+      "hook": true,
+      "hands_back": false
+    },
+    {
+      "name": "exhausted: no arguments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReverseDeferredInternalTransferJob",
+      "args": [],
+      "hook": true,
+      "hands_back": false
+    }
+  ]
+}

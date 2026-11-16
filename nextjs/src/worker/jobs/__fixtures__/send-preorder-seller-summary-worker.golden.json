@@ -1,0 +1,941 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a link without preorders",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "every authorized preorder holds its charged purchase",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder still holding only its authorization purchase",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": [
+              [
+                1,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1,1],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder whose charge is in progress",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": [
+              [
+                1,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1,1],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder with one in-progress purchase only",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder whose authorization failed is ignored",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder of another link is ignored",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "one waiting preorder among charged ones",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": [
+              [
+                1,
+                2
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1,1],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "a preorder with no purchases",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[1],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "the second attempt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": [
+              [
+                1,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1,2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1,
+        1
+      ],
+      "errors": []
+    },
+    {
+      "name": "the last attempt before the limit",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": [
+              [
+                1,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1,72],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1,
+        71
+      ],
+      "errors": []
+    },
+    {
+      "name": "the attempt that hits the limit",
+      "error": {
+        "class": "RuntimeError",
+        "message": "Timed out waiting for all preorders to be charged. PreorderLink: 1."
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1,
+        72
+      ],
+      "errors": [
+        [
+          [
+            "Timed out waiting for all preorders to be charged. PreorderLink: 1."
+          ],
+          {}
+        ]
+      ]
+    },
+    {
+      "name": "past the limit",
+      "error": {
+        "class": "RuntimeError",
+        "message": "Timed out waiting for all preorders to be charged. PreorderLink: 1."
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        1,
+        100
+      ],
+      "errors": [
+        [
+          [
+            "Timed out waiting for all preorders to be charged. PreorderLink: 1."
+          ],
+          {}
+        ]
+      ]
+    },
+    {
+      "name": "an unknown link",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find PreorderLink with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        99
+      ],
+      "errors": []
+    },
+    {
+      "name": "an unknown link past the limit",
+      "error": {
+        "class": "RuntimeError",
+        "message": "Timed out waiting for all preorders to be charged. PreorderLink: 99."
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        99,
+        72
+      ],
+      "errors": [
+        [
+          [
+            "Timed out waiting for all preorders to be charged. PreorderLink: 99."
+          ],
+          {}
+        ]
+      ]
+    },
+    {
+      "name": "the link id as a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(`preorders`.`id`) AS `count_preorders_id`, `preorders`.`id` AS `preorders_id` FROM `preorders` INNER JOIN `purchases` ON `purchases`.`preorder_id` = `preorders`.`id` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful' AND `purchases`.`purchase_state` != 'in_progress' GROUP BY `preorders`.`id` HAVING (count(*) = 1)",
+          "result": {
+            "fields": [
+              "count_preorders_id",
+              "preorders_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "queue:critical": {
+          "type": "list",
+          "value": [
+            "{\"retry\":25,\"queue\":\"critical\",\"backtrace\":true,\"wrapped\":\"MailDeliveryJob\",\"args\":[{\"job_class\":\"MailDeliveryJob\",\"job_id\":\"00000000-0000-4000-8000-000000000001\",\"provider_job_id\":null,\"queue_name\":\"critical\",\"priority\":null,\"arguments\":[\"ContactingCreatorMailer\",\"preorder_summary\",\"deliver_now\",{\"args\":[\"1\"],\"_aj_ruby2_keywords\":[\"args\"]}],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2026-11-04T12:30:45.123000000Z\",\"scheduled_at\":null}],\"class\":\"ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "job": "SendPreorderSellerSummaryWorker",
+      "args": [
+        "1"
+      ],
+      "errors": []
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "receiver": "ObfuscateIds",
+  "config": {
+    "OBFUSCATE_IDS_CIPHER_KEY": "test-cipher-key",
+    "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY": "123456789"
+  },
+  "out": "nextjs/src/lib/__fixtures__/obfuscate-ids.golden.json",
+  "groups": {
+    "encrypt": {
+      "method": "encrypt",
+      "inputs": [
+        0,
+        1,
+        2,
+        42,
+        999,
+        123456,
+        2147483647,
+        1099511627783
+      ]
+    },
+    "encrypt_unpadded": {
+      "method": "encrypt",
+      "kwargs": {
+        "padding": false
+      },
+      "inputs": [
+        0,
+        1,
+        2,
+        42,
+        999,
+        123456,
+        2147483647,
+        1099511627783
+      ]
+    },
+    "decrypt": {
+      "method": "decrypt",
+      "inputs": [
+        "garbage",
+        "a",
+        "",
+        "!!!!",
+        "AAAAAAAAAAAAAAAAAAAAAA==",
+        "tTUIgZ0A6zLh8hPoseuE7A",
+        "1UokxkyxJ__gd-gssE0g7w",
+        "7-RrdvIoUS_D2srgUHAytg",
+        "d-qjI1chhB5ZacH8vx3VWg",
+        "uHFq_LfkpjTa4lbw3mcgJw",
+        "0pamYm4hbc1Wp19QAEGbpQ",
+        "Oi35qPBx24RTtjCuwKcDYA",
+        "UwgdbbqwTZ1Jhagt-l560w"
+      ]
+    },
+    "encrypt_numeric": {
+      "method": "encrypt_numeric",
+      "inputs": [
+        0,
+        1,
+        2,
+        42,
+        1000,
+        536870912,
+        1073741823
+      ]
+    },
+    "decrypt_numeric": {
+      "method": "decrypt_numeric",
+      "inputs": [
+        0,
+        1,
+        302841629,
+        1073741823,
+        1073741824,
+        2147483653
+      ]
+    }
+  }
+}

@@ -1,0 +1,542 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a build that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a build that does not exist among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a build",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "build1",
+                1,
+                "uploaded",
+                "https://example.com/1.zip",
+                "builds/1",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a build among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "build2",
+                2,
+                "uploaded",
+                "https://example.com/2.zip",
+                "builds/2",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a promoted build",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "build1",
+                1,
+                "promoted",
+                "https://example.com/1.zip",
+                "builds/1",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a failed build",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "build1",
+                1,
+                "failed",
+                "https://example.com/1.zip",
+                "builds/1",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a build id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "build1",
+                1,
+                "uploaded",
+                "https://example.com/1.zip",
+                "builds/1",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a build id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a build id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "build1",
+                1,
+                "uploaded",
+                "https://example.com/1.zip",
+                "builds/1",
+                10,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a build id as a word",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_builds`.* FROM `product_builds` WHERE `product_builds`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "public_id",
+              "number",
+              "status",
+              "source_url",
+              "storage_key",
+              "byte_size",
+              "product_file_id",
+              "promoted_at",
+              "created_at",
+              "updated_at",
+              "site_unpacked_at",
+              "site_file_count",
+              "site_byte_size",
+              "site_unpack_error"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "one argument too many",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 2, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ProductBuildUnpackJob",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": false
+    }
+  ]
+}

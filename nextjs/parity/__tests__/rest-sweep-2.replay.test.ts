@@ -1,0 +1,389 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import path from "node:path";
+
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
+import { closeAllRedis } from "@/server/infra/redis";
+
+import type { JobsChannel, RawJob } from "../src/channels";
+import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import { loadFixture } from "../src/fixture";
+import { maskGeneratedUids } from "../src/generated-uids";
+import { startNextServer, type NextServer } from "../src/next-server";
+import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { reencryptCookies, redisSeeder } from "../src/session";
+
+// Replays the specs of the second rest sweep (help center contact form, brand accounts, commissions, build promotion, global affiliate
+// product eligibility, affiliates export), with the same method as dashboard-json.replay.test.ts: each fixture is a login,
+// a CSRF fetch and the request under test, and only the last is replayed against `next dev` with the route flags on. A request the
+// port hands back must reach the stand-in Rails with its body, before anything is written.
+const url = process.env.PARITY_DATABASE_URL;
+const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+const FIXTURES = "parity/fixtures/requests";
+const SPECS = [
+  "help_center_contact_parity_spec",
+  "brand_accounts_parity_spec",
+  "commissions_parity_spec",
+  "product_builds_promote_parity_spec",
+  "global_affiliates_product_eligibility_parity_spec",
+  "affiliates_export_parity_spec",
+];
+const ROUTE_FLAGS = [
+  "nextjs_help_center_contact",
+  "nextjs_brand_accounts",
+  "nextjs_commissions",
+  "nextjs_product_builds_promote",
+  "nextjs_global_affiliates_product_eligibility",
+  "nextjs_affiliates_export",
+].join(",");
+const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
+const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The request spec's test adapter never queued the mail jobs (the
+// fixtures hold none), so they are asserted apart from the others.
+type MailItem = { wrapped?: string; queue: string; args: { arguments: unknown[] }[] };
+const isMail = (item: MailItem) => item.wrapped?.endsWith("MailDeliveryJob") === true;
+let mailJobs: MailItem[] = [];
+
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      mailJobs = [];
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: RawJob[] = [];
+      mailJobs = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as MailItem & {
+          class: string;
+          args: unknown[];
+          at?: number;
+        };
+        if (isMail(item)) mailJobs.push(item);
+        else
+          jobs.push({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          });
+      }
+      for (const key of await redis.keys("queue:*")) {
+        for (const raw of await redis.lrange(key, 0, -1)) {
+          const item = JSON.parse(raw) as MailItem & { class: string; args: unknown[] };
+          if (isMail(item)) mailJobs.push(item);
+          else jobs.push({ class: item.class, args: item.args, queue: item.queue });
+        }
+      }
+      // A job whose body stays in Ruby waits in Sidekiq's schedule until its time (PostToPingEndpointsWorker, five seconds out).
+      for (const raw of await redis.zrange("schedule", "0", "-1")) {
+        const item = JSON.parse(raw) as MailItem & { class: string; args: unknown[]; at?: number };
+        if (isMail(item)) mailJobs.push(item);
+        else
+          jobs.push({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          });
+      }
+      // Rails' user factories took the until_executed lock of GenerateSubscribePreviewJob before the request; Node takes it as production does.
+      return jobs
+        .filter((job) => job.class !== "GenerateSubscribePreviewJob")
+        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+    },
+  };
+}
+
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+
+// The keyword arguments of SupportContactMailer.contact_form the request enqueued, which Rails' test adapter did not record
+// (the mail is asserted apart from the jobs). Every other request sends nothing.
+const MESSAGE = "My payout hasn't arrived and it's been over a week now.";
+const CONTACT_MAILS: Record<string, Record<string, unknown>> = {
+  "enqueues-the-support-email-of-a-visitor": {
+    user_id: null,
+    referrer_path: "/help/article/13-getting-paid",
+    message: MESSAGE,
+  },
+  "forwards-only-a-same-app-referrer-path": { user_id: null, referrer_path: null, message: MESSAGE },
+  "trims-the-email-and-the-message": {
+    user_id: null,
+    referrer_path: "/help/article/13-getting-paid",
+    message: "My payout hasn't arrived yet.",
+  },
+  "counts-the-characters-of-the-message-not-its-bytes": {
+    user_id: null,
+    referrer_path: "/help/article/13-getting-paid",
+    message: "é".repeat(10),
+  },
+  "enqueues-the-support-email-with-the-signed-in-user-s-id": {
+    user_id: "<a user>",
+    referrer_path: "/help/article/13-getting-paid",
+    message: MESSAGE,
+  },
+};
+
+function expectedContactMail(name: string): Record<string, unknown> | null {
+  if (!name.startsWith("help_center_contact_parity_spec")) return null;
+  const key = Object.keys(CONTACT_MAILS).find((candidate) => name.endsWith(candidate));
+  return key === undefined ? null : CONTACT_MAILS[key]!;
+}
+
+const COMPARE = {
+  ignore: [
+    "response.headers.x-original-headers-class",
+    "response.headers.cache-control",
+    "response.headers.link",
+    // Rails adds Vary: Accept to a JSON answer whose action never touched params; Node's answer helpers mark every render as having read them.
+    "response.headers.vary",
+    "response.cookies.__profilin",
+    "response.cookies.XSRF-TOKEN.value",
+    // Rails' versions are off in the test environment (PaperTrail.enabled = false); models/concerns/paper-trail.test.ts pins Node's rows.
+    "db.versions",
+    "jobs.*.at",
+    "http",
+    // The export file is named after the second it was made in.
+    "response.headers.content-disposition",
+    // A brand account is a new user: random tokens and the bcrypt hash (checked below), and the cookie is encrypted with a random IV.
+    "db.users.inserted.*.encrypted_password",
+    "db.users.inserted.*.confirmation_token",
+    "db.users.inserted.*.external_id",
+    "db.users.inserted.*.otp_secret_key",
+    "db.seller_profiles.inserted.*.created_at",
+    "db.seller_profiles.inserted.*.updated_at",
+    "response.cookies.current_seller_id.value",
+  ],
+};
+
+const HANDED_BACK = /hands-|through-rails/u;
+
+// The export prints each affiliate's creation day in the affiliate's own time zone (Pacific), so a row seeded as `<now>` lands on the other
+// side of midnight depending on the hour the replay runs at, and the time-zone example (dated 2026-03-02T03:30Z, recorded as `<now-6154h>`)
+// does so a day later. Only the seed resolves against the pinned instant, which is that date plus the 6,154 hours.
+const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [["affiliates-export-", "2026-11-13T13:30:00Z"]];
+
+const cases = SPECS.flatMap((spec) => {
+  const dir = path.join(FIXTURES, spec);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .map(
+      (file) =>
+        [
+          `${spec}: ${file.replace(/\.json$/u, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
+});
+
+describe.skipIf(!url)("rest sweep 2", () => {
+  let client: PrismaClient;
+  let sql: SqlExecutor;
+  let redis: Redis;
+  let es: ElasticsearchClient;
+  let server: NextServer;
+  let rails: Server;
+  const handedBack: { method: string; url: string; body: string }[] = [];
+  const saved = { ...process.env };
+
+  beforeAll(async () => {
+    process.env.DATABASE_URL = url;
+    process.env.ELASTICSEARCH_HOST = ELASTICSEARCH_HOST;
+    process.env.ES_INDEX_SUFFIX = ES_INDEX_SUFFIX;
+    client = new PrismaClient({ datasourceUrl: url });
+    sql = prismaExecutor(client);
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
+    const [hostAndPort = "", db = "0"] = redisHost.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    redis = new Redis({ host, port: Number(port), db: Number(db) });
+    rails = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        response.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    const railsPort = (rails.address() as { port: number }).port;
+    server = await startNextServer({
+      RAILS_ENV: "test",
+      OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
+      OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
+      RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      SECRET_KEY_BASE,
+      DATABASE_URL: url!,
+      REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: redisHost,
+      DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
+      AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
+      ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
+    });
+  }, FIRST_COMPILE_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await server?.stop();
+    await new Promise((resolve) => rails?.close(resolve));
+    await closeAllRedis();
+    await redis?.quit();
+    await es?.close();
+    await client?.$disconnect();
+    process.env = saved;
+  });
+
+  const pinnedClock = (name: string) => {
+    const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
+    return pinned ? { driftDates: false, seedClock: new Date(pinned[1]) } : {};
+  };
+
+  const options = (name = "") => ({
+    ...pinnedClock(name),
+    sql,
+    redis: {
+      reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
+        await redisSeeder(redis).reset(entries);
+        const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, purchases);
+        await reindexPurchases(es, purchases.name, sql);
+      },
+    },
+    transport: httpTransport(server.baseUrl),
+    interceptHttp: false,
+    jobs: redisJobs(redis),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    // Rails renders its debug page for these 404s in the test environment; only the status is compared.
+    compare: name.includes("404")
+      ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
+      : // A 400 gets the same page, with a content type Node now answers.
+        name.includes("answers-400")
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
+        : COMPARE,
+  });
+
+  it("finds the fixtures", () => {
+    expect(cases.length).toBeGreaterThan(0);
+  });
+
+  // The first request down a code path compiles what it imports, which would age the seeded timestamps past the
+  // replayer's tolerance. One warm-up per route is not enough: a 404 never reaches the modules a delete loads.
+  it(
+    "compiles the handlers",
+    async () => {
+      for (const [, file, index] of cases) await replayFixtureExchange(file, index, options()).catch(() => undefined);
+    },
+    FIRST_COMPILE_TIMEOUT_MS * 3,
+  );
+
+  it.each(cases)(
+    "%s",
+    async (name, file, index) => {
+      try {
+        const fixture = loadFixture(file);
+        if (HANDED_BACK.test(name)) {
+          handedBack.length = 0;
+          const handed = await replayFixtureExchange(fixture, index, options(name));
+          const request = fixture.exchanges[index]!.request;
+          expect(handedBack).toHaveLength(1);
+          expect(handedBack[0]).toMatchObject({ method: request.method });
+          expect(decodeURIComponent(handedBack[0]!.url.split("?")[0]!)).toBe(
+            decodeURIComponent(request.path.split("?")[0]!),
+          );
+          if (request.body) expect(handedBack[0]!.body).toBe(request.body);
+          expect(
+            Object.keys(handed.exchanges[0]!.actual.db ?? {}).filter((table) => table !== "dashboard_nav_promotions"),
+          ).toEqual([]);
+          return;
+        }
+        // Rails and Node push in different orders across stores: both sides are compared sorted.
+        const recorded = fixture.exchanges[index]!;
+        recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        const result = await replayFixtureExchange(fixture, index, options(name));
+        maskGeneratedUids(result.exchanges[0]!, {
+          ...options(name).compare,
+          ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
+        });
+        assertParity(result);
+        const actual = result.exchanges[0]!.actual;
+        if ((actual.db?.users?.inserted?.length ?? 0) > 0) {
+          // A new account: the bcrypt hash, the confirmation mail carrying the stored token, and the switch into the account.
+          const row = (await client.user.findFirst({
+            where: { id: BigInt((actual.db!.users!.inserted![0] as { id: number }).id) },
+            select: { id: true, encrypted_password: true, confirmation_token: true },
+          }))!;
+          expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
+          expect(row.confirmation_token).toMatch(/^[A-Za-z0-9_-]{20}$/u);
+          expect(mailJobs).toHaveLength(1);
+          const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+          expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "critical" });
+          expect(wrapped.arguments.slice(0, 2)).toEqual(["UserSignupMailer", "confirmation_instructions"]);
+          expect(JSON.stringify(mailJobs[0]!.args)).toContain(row.confirmation_token!);
+          const cookie = actual.response.cookies?.current_seller_id?.value as string | undefined;
+          expect(readEncryptedCookie(deriveRailsCookieSecrets(SECRET_KEY_BASE), "current_seller_id", cookie)).toBe(
+            Number(row.id),
+          );
+          return;
+        }
+        const wanted = expectedContactMail(name);
+        expect(mailJobs).toHaveLength(wanted === null ? 0 : 1);
+        if (wanted !== null) {
+          const [mailer, method, , options] = mailJobs[0]!.args[0]!.arguments as [
+            string,
+            string,
+            string,
+            { args: [Record<string, unknown>] },
+          ];
+          expect([mailer, method, mailJobs[0]!.wrapped, mailJobs[0]!.queue]).toEqual([
+            "SupportContactMailer",
+            "contact_form",
+            "SupportContactMailDeliveryJob",
+            "default",
+          ]);
+          const keywords = options.args[0];
+          expect(keywords).toMatchObject({ email: "buyer@example.com", category: "payouts", attachments: [] });
+          const { user_id: userId, ...rest } = wanted;
+          expect(keywords).toMatchObject(rest);
+          if (userId === "<a user>") expect(typeof keywords.user_id).toBe("number");
+          else expect(keywords.user_id).toBe(userId);
+        }
+      } catch (error) {
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
+        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+});

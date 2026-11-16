@@ -1,0 +1,617 @@
+{
+  "interpolate_profile": [
+    {
+      "name": "writes the name and bio escaped",
+      "html": "<h1 data-gumroad-field=\"name\">x</h1><p data-gumroad-field=\"bio\">y</p>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<h1 data-gumroad-field=\"name\">Ada &amp; &lt;Lovelace&gt;</h1><p data-gumroad-field=\"bio\">I make \"things\" &amp; 'stuff' — café ☕</p>"
+    },
+    {
+      "name": "leaves an unknown field alone",
+      "html": "<p data-gumroad-field=\"mystery\">keep</p>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"mystery\">keep</p>"
+    },
+    {
+      "name": "clears the text with an empty name",
+      "html": "<b data-gumroad-field=\"name\">placeholder</b>",
+      "profile": {
+        "name_or_username": "",
+        "bio": ""
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<b data-gumroad-field=\"name\"></b>"
+    },
+    {
+      "name": "returns blank input untouched",
+      "html": "  \n",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "  \n"
+    },
+    {
+      "name": "returns an empty string untouched",
+      "html": "",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": ""
+    },
+    {
+      "name": "keeps markup around the fields",
+      "html": "<div class=\"a\"><span>Hi, I am <em data-gumroad-field=\"name\">n</em>!</span></div><!-- note --><p>tail",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<div class=\"a\"><span>Hi, I am <em data-gumroad-field=\"name\">Ada &amp; &lt;Lovelace&gt;</em>!</span></div><!-- note --><p>tail</p>"
+    },
+    {
+      "name": "writes into nested markers",
+      "html": "<div data-gumroad-field=\"bio\"><span data-gumroad-field=\"name\">inner</span></div>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<div data-gumroad-field=\"bio\">I make \"things\" &amp; 'stuff' — café ☕</div>"
+    },
+    {
+      "name": "writes a product price",
+      "html": "<span data-gumroad-product=\"ebook\" data-gumroad-field=\"price\">0</span>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-product=\"ebook\" data-gumroad-field=\"price\">$12</span>"
+    },
+    {
+      "name": "writes the original price while a sale runs",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-field=\"original-price\">x</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-field=\"original-price\">$15</s>"
+    },
+    {
+      "name": "uppercases the currency",
+      "html": "<i data-gumroad-product=\"ebook\" data-gumroad-field=\"currency\">x</i>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<i data-gumroad-product=\"ebook\" data-gumroad-field=\"currency\">USD</i>"
+    },
+    {
+      "name": "keeps the text when the product has no original price",
+      "html": "<s data-gumroad-product=\"free\" data-gumroad-field=\"original-price\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"free\" data-gumroad-field=\"original-price\">stay</s>"
+    },
+    {
+      "name": "keeps the text for a blank price",
+      "html": "<s data-gumroad-product=\"blank\" data-gumroad-field=\"price\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"blank\" data-gumroad-field=\"price\">stay</s>"
+    },
+    {
+      "name": "keeps the text for an unknown permalink",
+      "html": "<s data-gumroad-product=\"nope\" data-gumroad-field=\"price\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"nope\" data-gumroad-field=\"price\">stay</s>"
+    },
+    {
+      "name": "keeps the text for a product field the surface does not know",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-field=\"name\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-field=\"name\">stay</s>"
+    },
+    {
+      "name": "does not answer a valueless product marker with the profile",
+      "html": "<s data-gumroad-product data-gumroad-field=\"name\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product data-gumroad-field=\"name\">stay</s>"
+    },
+    {
+      "name": "scopes a price to an option",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Pro\" data-gumroad-field=\"price\">x</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Pro\" data-gumroad-field=\"price\">$30</s>"
+    },
+    {
+      "name": "keeps the text for an option the product lacks",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Max\" data-gumroad-field=\"price\">stay</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Max\" data-gumroad-field=\"price\">stay</s>"
+    },
+    {
+      "name": "reads an empty option as no option",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"\" data-gumroad-field=\"price\">x</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"\" data-gumroad-field=\"price\">$12</s>"
+    },
+    {
+      "name": "writes an option's original price",
+      "html": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Lite\" data-gumroad-field=\"original-price\">x</s>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": {
+        "ebook": {
+          "price": "$12",
+          "original_price": "$15",
+          "currency_code": "usd",
+          "options": [
+            {
+              "name": "Pro",
+              "price": "$30",
+              "original_price": null,
+              "currency_code": "usd"
+            },
+            {
+              "name": "Lite",
+              "price": "$8",
+              "original_price": "$10",
+              "currency_code": "usd"
+            }
+          ]
+        },
+        "free": {
+          "price": "$0",
+          "original_price": null,
+          "currency_code": "eur"
+        },
+        "blank": {
+          "price": "",
+          "original_price": "",
+          "currency_code": null
+        }
+      },
+      "hands_back": false,
+      "output": "<s data-gumroad-product=\"ebook\" data-gumroad-option=\"Lite\" data-gumroad-field=\"original-price\">$10</s>"
+    },
+    {
+      "name": "normalizes the surrounding document",
+      "html": "<P DATA-GUMROAD-FIELD=\"name\">x</P><br><img src=\"a.png\" alt='q\"q'>&nbsp;&amp;&copy;",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"name\">Ada &amp; &lt;Lovelace&gt;</p><br><img src=\"a.png\" alt='q\"q'> &amp;©"
+    },
+    {
+      "name": "hands back a marker on a void element",
+      "html": "<br data-gumroad-field=\"name\">",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": true,
+      "output": "<br data-gumroad-field=\"name\">"
+    },
+    {
+      "name": "hands back a marker on a script",
+      "html": "<script data-gumroad-field=\"name\">1</script>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": true,
+      "output": "<script data-gumroad-field=\"name\">Ada & <Lovelace></script>"
+    },
+    {
+      "name": "hands back a marker on a textarea",
+      "html": "<textarea data-gumroad-field=\"bio\">1</textarea>",
+      "profile": {
+        "name_or_username": "Ada & <Lovelace>",
+        "bio": "I make \"things\" & 'stuff' — café ☕"
+      },
+      "prices": null,
+      "hands_back": true,
+      "output": "<textarea data-gumroad-field=\"bio\">I make \"things\" &amp; 'stuff' — café ☕</textarea>"
+    }
+  ]
+}

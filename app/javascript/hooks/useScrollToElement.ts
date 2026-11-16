@@ -46,7 +46,7 @@ export function useScrollToElement<T extends HTMLElement = HTMLElement>(
   options: ScrollIntoViewOptions = { behavior: "smooth", block: "start" },
   dependencies: readonly unknown[] = [],
   delay = 200,
-): React.RefObject<T> {
+): React.RefObject<T | null> {
   const elementRef = React.useRef<T>(null);
 
   React.useEffect(() => {

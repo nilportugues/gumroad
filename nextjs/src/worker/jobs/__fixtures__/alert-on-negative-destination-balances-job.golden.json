@@ -1,0 +1,2156 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no balances",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "only positive unpaid balances",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                500,
+                500,
+                500,
+                500
+              ],
+              [
+                2,
+                7,
+                100,
+                100,
+                100,
+                100
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '2') OR (user_id = '2' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative balance that is already paid",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative balance that is processing",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative balance that is forfeited",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative balance with no merchant account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative destination matched by a negative USD ledger",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative destination matched by negative USD ledgers for two sellers",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ],
+              [
+                2,
+                8,
+                -900,
+                -900,
+                -100,
+                -100
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '2') OR (user_id = '2' AND merchant_account_id > '8')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative destination netted to nothing by a positive one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                0,
+                0,
+                1000,
+                1000
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a negative destination with no USD movement",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                0,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a negative destination with a positive USD ledger",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a negative destination before the cutoff only",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                400,
+                -500,
+                800,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a negative destination after the cutoff only",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -600,
+                900,
+                800,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a negative destination on the cutoff date",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a negative destination the day after the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                0,
+                400,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a netted pair before a qualifying pair",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ],
+              [
+                2,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '2') OR (user_id = '2' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a qualifying pair before a netted pair",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ],
+              [
+                2,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '2') OR (user_id = '2' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "two merchant accounts of one seller, the first netted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ],
+              [
+                1,
+                8,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '8')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "two merchant accounts of one seller, the second netted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ],
+              [
+                1,
+                8,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '8')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "several netted pairs",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -100,
+                -100,
+                -50,
+                -50
+              ],
+              [
+                2,
+                7,
+                -200,
+                -200,
+                -100,
+                -100
+              ],
+              [
+                3,
+                7,
+                -300,
+                -300,
+                -150,
+                -150
+              ],
+              [
+                4,
+                7,
+                -400,
+                -400,
+                -200,
+                -200
+              ],
+              [
+                5,
+                7,
+                -500,
+                -500,
+                -250,
+                -250
+              ],
+              [
+                6,
+                7,
+                -600,
+                -600,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '6') OR (user_id = '6' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "many positive pairs and a netted one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                100,
+                100,
+                100,
+                100
+              ],
+              [
+                2,
+                7,
+                -100,
+                -100,
+                -100,
+                -100
+              ],
+              [
+                3,
+                7,
+                100,
+                100,
+                100,
+                100
+              ],
+              [
+                4,
+                7,
+                -100,
+                -100,
+                -100,
+                -100
+              ],
+              [
+                5,
+                7,
+                100,
+                100,
+                100,
+                100
+              ],
+              [
+                6,
+                7,
+                -100,
+                -100,
+                -100,
+                -100
+              ],
+              [
+                7,
+                7,
+                100,
+                100,
+                100,
+                100
+              ],
+              [
+                8,
+                7,
+                -100,
+                -100,
+                -100,
+                -100
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '8') OR (user_id = '8' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair in the cycle window only",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -400,
+                -500,
+                -200,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": false
+    },
+    {
+      "name": "a window where the cycle nets and the whole ledger qualifies",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -600,
+                -500,
+                600,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "a seller with a high id and a negative balance",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                2000000000,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '2000000000') OR (user_id = '2000000000' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793795445.1230001,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Sunday 2026-11-01",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793577599.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Sunday 2026-11-01",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793577599.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Sunday 2026-11-01",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793577599.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Monday 2026-11-02",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793663999.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Monday 2026-11-02",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793663999.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Monday 2026-11-02",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793663999.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Tuesday 2026-11-03",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793750399.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Tuesday 2026-11-03",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793750399.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Tuesday 2026-11-03",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793750399.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Wednesday 2026-11-04",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793836799.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Wednesday 2026-11-04",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793836799.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Wednesday 2026-11-04",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793836799.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Thursday 2026-11-05",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793923199.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Thursday 2026-11-05",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793923199.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Thursday 2026-11-05",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793923199.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Friday 2026-11-06",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794009599.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Friday 2026-11-06",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794009599.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Friday 2026-11-06",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794009599.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances on Saturday 2026-11-07",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794095999.5,
+      "hands_back": false
+    },
+    {
+      "name": "a netted pair on Saturday 2026-11-07",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                -300,
+                -300
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794095999.5,
+      "hands_back": false
+    },
+    {
+      "name": "a qualifying pair on Saturday 2026-11-07",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                -500,
+                -500,
+                400,
+                400
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '1') OR (user_id = '1' AND merchant_account_id > '7')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-11-06' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1794095999.5,
+      "hands_back": true
+    },
+    {
+      "name": "no balances at midnight on a Friday",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-10-30' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1793923200.0,
+      "hands_back": false
+    },
+    {
+      "name": "no balances on New Year's Day",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2026-12-25' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2026-12-25' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2026-12-25' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2026-12-25' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1798790400.0,
+      "hands_back": false
+    },
+    {
+      "name": "no balances on a leap day",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `balances`.`user_id`, `balances`.`merchant_account_id`, SUM(holding_amount_cents), SUM(CASE WHEN date <= '2028-02-25' THEN holding_amount_cents ELSE 0 END), SUM(amount_cents), SUM(CASE WHEN date <= '2028-02-25' THEN amount_cents ELSE 0 END) FROM `balances` WHERE `balances`.`state` = 'unpaid' AND `balances`.`merchant_account_id` IS NOT NULL AND ((user_id > '0') OR (user_id = '0' AND merchant_account_id > '0')) GROUP BY `balances`.`user_id`, `balances`.`merchant_account_id` ORDER BY `balances`.`user_id` ASC, `balances`.`merchant_account_id` ASC LIMIT 25000",
+          "result": {
+            "fields": [
+              "user_id",
+              "merchant_account_id",
+              "SUM(holding_amount_cents)",
+              "SUM(CASE WHEN date <= '2028-02-25' THEN holding_amount_cents ELSE 0 END)",
+              "SUM(amount_cents)",
+              "SUM(CASE WHEN date <= '2028-02-25' THEN amount_cents ELSE 0 END)"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnNegativeDestinationBalancesJob",
+      "args": [],
+      "case_now": 1835424000.0,
+      "hands_back": false
+    }
+  ]
+}

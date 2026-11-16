@@ -1,0 +1,854 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a schedule that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a due schedule",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule not yet due",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-05T00:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule being published",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "publishing",
+                {
+                  "$time": "2026-11-04T12:30:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a published schedule",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "published",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a failed schedule",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "failed",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the schedule id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        "2"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the schedule id as a digit string that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        "9"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a schedule id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a schedule id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule id as a float with a fraction",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1.5
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule id as a word",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a schedule id as a digit string with text",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        "1x"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule id of zero",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a negative schedule id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = -1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        -1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a schedule id as true",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        true
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a schedule id as an array",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `product_publish_schedules`.* FROM `product_publish_schedules` WHERE `product_publish_schedules`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "scheduled_by_id",
+              "publish_at",
+              "status",
+              "claimed_at",
+              "published_at",
+              "failure_message",
+              "notice_sent_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T12:00:00.000000Z"
+                },
+                "scheduled",
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        [
+          1
+        ]
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "two arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 2, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "PublishScheduledProductJob",
+      "args": [
+        1,
+        2
+      ],
+      "hands_back": false
+    }
+  ]
+}

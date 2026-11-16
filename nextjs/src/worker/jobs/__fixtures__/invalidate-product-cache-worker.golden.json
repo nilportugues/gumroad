@@ -1,0 +1,3784 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a product with no cached values",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "one fresh cached value",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "several fresh cached values",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (2, 1, FALSE, NULL, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (3, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ],
+              [
+                2,
+                1,
+                0,
+                null,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ],
+              [
+                3,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 3",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "cached values that are already expired",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, TRUE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (2, 1, TRUE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "fresh and expired cached values",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, TRUE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (2, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (3, 1, TRUE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (4, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ],
+              [
+                4,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 4",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "cached values of another product are kept",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (2, 'Product 2', 1, 'p2', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 2, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (2, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a deleted product",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`, `deleted_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a product that does not exist",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        9
+      ]
+    },
+    {
+      "name": "an id given as a digit string",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        "1"
+      ]
+    },
+    {
+      "name": "an id given as a float",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 1 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "Product 1",
+                "p1",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_1"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1.0
+      ]
+    },
+    {
+      "name": "a nil id",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        null
+      ]
+    },
+    {
+      "name": "an id that is not a number",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=\"abc\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        "abc"
+      ]
+    },
+    {
+      "name": "a negative id",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=-1"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = -1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        -1
+      ]
+    },
+    {
+      "name": "an id past a bigint",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (1, 'Product 1', 1, 'p1', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 1, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Link with 'id'=1180591620717411303424"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        1180591620717411303424
+      ]
+    },
+    {
+      "name": "an id past 2**53",
+      "seed": [
+        "INSERT INTO `links` (`id`, `name`, `user_id`, `unique_permalink`, `price_currency_type`, `flags`, `created_at`, `updated_at`) VALUES (9007199254740993, 'Product 9007199254740993', 1, 'p9007199254740993', 'usd', 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')",
+        "INSERT INTO `product_cached_values` (`id`, `product_id`, `expired`, `successful_sales_count`, `remaining_for_sale_count`, `monthly_recurring_revenue`, `revenue_pending`, `total_usd_cents`, `created_at`, `updated_at`) VALUES (1, 9007199254740993, FALSE, 3, NULL, '0.0', '0.0', 500, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+      ],
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 9007199254740993 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                9007199254740993,
+                1,
+                "Product 9007199254740993",
+                "p9007199254740993",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `product_cached_values`.* FROM `product_cached_values` WHERE `product_cached_values`.`product_id` = 9007199254740993 AND `product_cached_values`.`expired` = FALSE",
+          "result": {
+            "fields": [
+              "id",
+              "product_id",
+              "expired",
+              "successful_sales_count",
+              "remaining_for_sale_count",
+              "monthly_recurring_revenue",
+              "revenue_pending",
+              "created_at",
+              "updated_at",
+              "total_usd_cents"
+            ],
+            "rows": [
+              [
+                1,
+                9007199254740993,
+                0,
+                3,
+                null,
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$decimal": "0.0"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                500
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `links`.* FROM `links` WHERE `links`.`id` = 9007199254740993 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "name",
+              "unique_permalink",
+              "preview_url",
+              "description",
+              "purchase_type",
+              "created_at",
+              "updated_at",
+              "purchase_disabled_at",
+              "deleted_at",
+              "price_cents",
+              "price_currency_type",
+              "customizable_price",
+              "max_purchase_count",
+              "bad_card_counter",
+              "require_shipping",
+              "last_partner_sync",
+              "preview_oembed",
+              "showcaseable",
+              "custom_receipt",
+              "custom_filetype",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "custom_permalink",
+              "common_color",
+              "suggested_price_cents",
+              "banned_at",
+              "risk_score",
+              "risk_score_updated_at",
+              "draft",
+              "flags",
+              "subscription_duration",
+              "json_data",
+              "external_mapping_id",
+              "affiliate_application_id",
+              "rental_price_cents",
+              "duration_in_months",
+              "migrated_to_tiered_pricing_at",
+              "free_trial_duration_unit",
+              "free_trial_duration_amount",
+              "content_updated_at",
+              "taxonomy_id",
+              "native_type",
+              "discover_fee_per_thousand",
+              "support_email",
+              "default_offer_code_id",
+              "sales_count_for_inventory_cache",
+              "first_published_at"
+            ],
+            "rows": [
+              [
+                9007199254740993,
+                1,
+                "Product 9007199254740993",
+                "p9007199254740993",
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "usd",
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                "link",
+                "url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "digital",
+                100,
+                null,
+                null,
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `product_cached_values` SET `product_cached_values`.`expired` = TRUE, `product_cached_values`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `product_cached_values`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [
+        [
+          "cache_delete",
+          "link_cache_key_prefix_9007199254740993"
+        ]
+      ],
+      "job": "InvalidateProductCacheWorker",
+      "args": [
+        9007199254740993
+      ]
+    }
+  ]
+}

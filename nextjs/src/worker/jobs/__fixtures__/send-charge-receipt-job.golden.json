@@ -1,0 +1,630 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a charge that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge whose receipt is sent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge whose receipt is sent on a later attempt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1,
+        3
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge whose receipt is sent with other flags set",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                3
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge whose receipt is not sent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge with only another flag set",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                2
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge whose receipt is not sent on a later attempt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1,
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id as a float",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=1.0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "SendChargeReceiptJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    }
+  ]
+}

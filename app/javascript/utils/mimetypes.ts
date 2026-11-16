@@ -632,5 +632,5 @@ const catalog = new Map(
 export function getMimeType(name: string) {
   if (!name) return defaultMimeType;
 
-  return catalog.get(last(name.toString().split(".")).toLowerCase()) ?? defaultMimeType;
+  return catalog.get(last(name.toString().split("."))?.toLowerCase() ?? "") ?? defaultMimeType;
 }

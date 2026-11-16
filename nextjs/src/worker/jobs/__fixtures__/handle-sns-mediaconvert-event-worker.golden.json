@@ -1,0 +1,784 @@
+{
+  "now": 1793795445.0,
+  "cases": [
+    {
+      "name": "a message that is not a notification",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "SubscriptionConfirmation",
+          "Message": "{\"detail\":{\"jobId\":\"job1\"}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification type of nil",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Message": "{}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a completed job in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[\"s3://gumroad-specs/transcoded/1/index.m3u8\"]}]}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          "transcoded/1/index.m3u8"
+        ]
+      ]
+    },
+    {
+      "name": "a completed job already finished",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[\"s3://gumroad-specs/transcoded/1/index.m3u8\"]}]}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a completed job already failed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[\"s3://gumroad-specs/transcoded/1/index.m3u8\"]}]}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a completed job nobody knows",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'nope' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"nope\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[\"s3://gumroad-specs/transcoded/1/index.m3u8\"]}]}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "an error event for a job in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"ERROR\"}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "ERROR",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a canceled event for a job in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"CANCELED\"}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "CANCELED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with a path outside the bucket",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[\"s3://other-bucket/x/index.m3u8\"]}]}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          "s3://other-bucket/x/index.m3u8"
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with no output details",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with empty output groups",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[]}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with no playlist paths",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[]}]}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with a path of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[null]}]}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a completed event with a path that is a number",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'delete_prefix' for an instance of Integer"
+      },
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":[{\"playlistFilePaths\":[5]}]}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a completed event whose output groups are not an array",
+      "error": {
+        "class": "TypeError",
+        "message": "String does not have #dig method"
+      },
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\",\"status\":\"COMPLETE\",\"outputGroupDetails\":\"x\"}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id of an empty string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = '' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"\",\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id with a quote",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'a\\'b' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"a'b\",\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":null,\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id missing",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": [
+        [
+          null,
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a job id given as an integer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = '1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":1,\"status\":\"COMPLETE\"}}"
+        }
+      ],
+      "processed": [
+        [
+          1,
+          "COMPLETED",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a status of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":{\"jobId\":\"job1\"}}"
+        }
+      ],
+      "processed": [
+        [
+          "job1",
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "a message that is not json",
+      "error": {
+        "class": "JSON::ParserError",
+        "message": "unexpected token 'not' at line 1 column 1"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "not json"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a message without detail",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '[]' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a message whose detail is a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "{\"detail\":\"x\"}"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a message that is nil",
+      "error": {
+        "class": "TypeError",
+        "message": "no implicit conversion of nil into String"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a message that is a json array",
+      "error": {
+        "class": "TypeError",
+        "message": "no implicit conversion of String into Integer"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        {
+          "Type": "Notification",
+          "Message": "[1]"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification that is nil",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '[]' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        null
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification that is a string",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleSnsMediaconvertEventWorker",
+      "args": [
+        "x"
+      ],
+      "processed": []
+    }
+  ]
+}

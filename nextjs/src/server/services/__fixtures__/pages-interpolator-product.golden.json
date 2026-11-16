@@ -1,0 +1,495 @@
+{
+  "interpolate": [
+    {
+      "name": "writes the product name escaped",
+      "html": "<h1 data-gumroad-field=\"name\">x</h1>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<h1 data-gumroad-field=\"name\">Ebook &amp; &lt;More&gt;</h1>"
+    },
+    {
+      "name": "writes the name into nested markup",
+      "html": "<div class=\"a\"><span>by <b data-gumroad-field=\"name\">n</b></span></div>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<div class=\"a\"><span>by <b data-gumroad-field=\"name\">Ebook &amp; &lt;More&gt;</b></span></div>"
+    },
+    {
+      "name": "clears a name that is nil",
+      "html": "<h1 data-gumroad-field=\"name\">placeholder</h1>",
+      "product": {
+        "name": null,
+        "description": null,
+        "reviews": null
+      },
+      "hands_back": false,
+      "output": "<h1 data-gumroad-field=\"name\"></h1>"
+    },
+    {
+      "name": "writes the rating without a trailing .0",
+      "html": "<span data-gumroad-field=\"rating\">0</span>",
+      "product": {
+        "name": "Four",
+        "description": "",
+        "reviews": {
+          "average": 4.0,
+          "count": 3
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-field=\"rating\">4</span>"
+    },
+    {
+      "name": "writes a fractional rating",
+      "html": "<span data-gumroad-field=\"rating\">0</span>",
+      "product": {
+        "name": "Three",
+        "description": null,
+        "reviews": {
+          "average": 3.3,
+          "count": 1
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-field=\"rating\">3.3</span>"
+    },
+    {
+      "name": "writes the review count",
+      "html": "<span data-gumroad-field=\"review-count\">0</span>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-field=\"review-count\">12</span>"
+    },
+    {
+      "name": "keeps the author's text when reviews are hidden",
+      "html": "<span data-gumroad-field=\"rating\">4.9</span><span data-gumroad-field=\"review-count\">100</span>",
+      "product": {
+        "name": "Plain",
+        "description": "Just text & <b>bold</b> with a \"quote\" and 'single' and café",
+        "reviews": null
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-field=\"rating\">4.9</span><span data-gumroad-field=\"review-count\">100</span>"
+    },
+    {
+      "name": "writes a zero count when the product has reviews enabled but none",
+      "html": "<span data-gumroad-field=\"review-count\">100</span>",
+      "product": {
+        "name": "",
+        "description": "<br>",
+        "reviews": {
+          "average": 0.0,
+          "count": 0
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-field=\"review-count\">100</span>"
+    },
+    {
+      "name": "writes plain text for a description",
+      "html": "<div data-gumroad-field=\"description\">x</div>",
+      "product": {
+        "name": "n",
+        "description": "Just text, no markup",
+        "reviews": null
+      },
+      "hands_back": false,
+      "output": "<div data-gumroad-field=\"description\">Just text, no markup</div>"
+    },
+    {
+      "name": "writes a description with entities",
+      "html": "<div data-gumroad-field=\"description\">x</div>",
+      "product": {
+        "name": "n",
+        "description": "Tom & Jerry < 3",
+        "reviews": null
+      },
+      "hands_back": false,
+      "output": "<div data-gumroad-field=\"description\">Tom &amp; Jerry &lt; 3</div>"
+    },
+    {
+      "name": "clears the text for a blank description",
+      "html": "<div data-gumroad-field=\"description\">placeholder</div>",
+      "product": {
+        "name": "Four",
+        "description": "",
+        "reviews": {
+          "average": 4.0,
+          "count": 3
+        }
+      },
+      "hands_back": false,
+      "output": "<div data-gumroad-field=\"description\"></div>"
+    },
+    {
+      "name": "clears the text for a nil description",
+      "html": "<div data-gumroad-field=\"description\">placeholder</div>",
+      "product": {
+        "name": "Three",
+        "description": null,
+        "reviews": {
+          "average": 3.3,
+          "count": 1
+        }
+      },
+      "hands_back": false,
+      "output": "<div data-gumroad-field=\"description\"></div>"
+    },
+    {
+      "name": "ignores an unknown field",
+      "html": "<p data-gumroad-field=\"mystery\">keep</p><p data-gumroad-field>keep too</p>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"mystery\">keep</p><p data-gumroad-field>keep too</p>"
+    },
+    {
+      "name": "ignores a field spelled in capitals",
+      "html": "<p data-gumroad-field=\"NAME\">keep</p>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"NAME\">keep</p>"
+    },
+    {
+      "name": "returns blank input untouched",
+      "html": "  \n",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "  \n"
+    },
+    {
+      "name": "returns an empty string untouched",
+      "html": "",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": ""
+    },
+    {
+      "name": "normalizes the surrounding document",
+      "html": "<P DATA-GUMROAD-FIELD=\"name\">x</P><br><img src=\"a.png\" alt='q\"q'>&nbsp;&amp;&copy;<!-- c -->tail",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"name\">Ebook &amp; &lt;More&gt;</p><br><img src=\"a.png\" alt='q\"q'> &amp;©<!-- c -->tail"
+    },
+    {
+      "name": "leaves a page with no markers normalized",
+      "html": "<section><h1>Title</h1><p>Text<p>More</section>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<section><h1>Title</h1>\n<p>Text</p>\n<p>More</p></section>"
+    },
+    {
+      "name": "a product-scoped marker is not a profile one",
+      "html": "<span data-gumroad-product=\"x\" data-gumroad-field=\"name\">stay?</span>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<span data-gumroad-product=\"x\" data-gumroad-field=\"name\">Ebook &amp; &lt;More&gt;</span>"
+    },
+    {
+      "name": "the review marker runs once for several elements",
+      "html": "<i data-gumroad-field=\"rating\">a</i><b data-gumroad-field=\"rating\">b</b><u data-gumroad-field=\"review-count\">c</u>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<i data-gumroad-field=\"rating\">4.5</i><b data-gumroad-field=\"rating\">4.5</b><u data-gumroad-field=\"review-count\">12</u>"
+    },
+    {
+      "name": "hands back a description with markup in a div",
+      "html": "<div data-gumroad-field=\"description\">x</div>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<div data-gumroad-field=\"description\">\n<p>First paragraph &amp; more</p>\n<h2>Heading</h2>\n<ul>\n<li>One</li>\n<li>Two</li>\n</ul>alert(1)</div>"
+    },
+    {
+      "name": "hands back a description with links",
+      "html": "<section data-gumroad-field=\"description\">x</section>",
+      "product": {
+        "name": "Links",
+        "description": "<p>See <a href=\"https://example.com/a?b=1&amp;c=2\" onclick=\"x()\">this</a> and <a href=\"javascript:alert(1)\">that</a></p>",
+        "reviews": null
+      },
+      "hands_back": true,
+      "output": "<section data-gumroad-field=\"description\"><p>See <a href=\"https://example.com/a?b=1&amp;c=2\">this</a> and <a>that</a></p></section>"
+    },
+    {
+      "name": "hands back a description with a break",
+      "html": "<div data-gumroad-field=\"description\">x</div>",
+      "product": {
+        "name": "",
+        "description": "<br>",
+        "reviews": {
+          "average": 0.0,
+          "count": 0
+        }
+      },
+      "hands_back": true,
+      "output": "<div data-gumroad-field=\"description\"><br></div>"
+    },
+    {
+      "name": "unwraps a phrasing marker around block markup",
+      "html": "<p class=\"intro\" id=\"d\" data-gumroad-field=\"description\">x</p><footer>after</footer>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul>\n<li>One</li>\n<li>Two</li>\n</ul>alert(1)<footer>after</footer>"
+    },
+    {
+      "name": "unwraps a span marker around a list",
+      "html": "<div><span data-gumroad-field=\"description\">x</span></div>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": false,
+      "output": "<div>\n<p>First paragraph &amp; more</p>\n<h2>Heading</h2>\n<ul>\n<li>One</li>\n<li>Two</li>\n</ul>alert(1)</div>"
+    },
+    {
+      "name": "writes a phrasing marker whose description has no block tag",
+      "html": "<p data-gumroad-field=\"description\">x</p>",
+      "product": {
+        "name": "Plain",
+        "description": "Just text & <b>bold</b> with a \"quote\" and 'single' and café",
+        "reviews": null
+      },
+      "hands_back": false,
+      "output": "<p data-gumroad-field=\"description\">Just text &amp; bold with a \"quote\" and 'single' and café</p>"
+    },
+    {
+      "name": "hands back the formatted price",
+      "html": "<span data-gumroad-field=\"price\">$0</span>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<span data-gumroad-field=\"price\">$1</span>"
+    },
+    {
+      "name": "hands back an option price",
+      "html": "<span data-gumroad-field=\"price\" data-gumroad-option=\"Pro\">$0</span>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<span data-gumroad-field=\"price\" data-gumroad-option=\"Pro\">$30</span>"
+    },
+    {
+      "name": "hands back a buy button",
+      "html": "<a data-gumroad-action=\"buy\">Buy</a>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<a data-gumroad-action=\"buy\" data-gumroad-checkout-params=\"{}\" href=\"/l/ebook?wanted=true\">Buy</a>"
+    },
+    {
+      "name": "hands back a buy button next to a name",
+      "html": "<h1 data-gumroad-field=\"name\">n</h1><button data-gumroad-action=\"buy\" data-gumroad-option=\"Pro\">Buy</button>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<h1 data-gumroad-field=\"name\">Ebook &amp; &lt;More&gt;</h1><button data-gumroad-action=\"buy\" data-gumroad-option=\"Pro\" data-gumroad-checkout-params=\"{}\">Buy</button>"
+    },
+    {
+      "name": "hands back a marker on a void element",
+      "html": "<br data-gumroad-field=\"name\">",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<br data-gumroad-field=\"name\">"
+    },
+    {
+      "name": "hands back a marker on a script",
+      "html": "<script data-gumroad-field=\"name\">1</script>",
+      "product": {
+        "name": "Ebook & <More>",
+        "description": "<p>First paragraph &amp; more</p><h2>Heading</h2><ul><li>One</li><li>Two</li></ul><script>alert(1)</script>",
+        "reviews": {
+          "average": 4.5,
+          "count": 12
+        }
+      },
+      "hands_back": true,
+      "output": "<script data-gumroad-field=\"name\">Ebook & <More></script>"
+    },
+    {
+      "name": "hands back whitespace-only text",
+      "html": "<p data-gumroad-field=\"name\">x</p>",
+      "product": {
+        "name": "  ",
+        "description": null,
+        "reviews": null
+      },
+      "hands_back": true,
+      "output": "<p data-gumroad-field=\"name\">  </p>"
+    }
+  ],
+  "referenced_in": [
+    {
+      "html": "",
+      "referenced": false
+    },
+    {
+      "html": "<p>plain</p>",
+      "referenced": false
+    },
+    {
+      "html": "<span data-gumroad-product=\"x\" data-gumroad-field=\"price\">0</span>",
+      "referenced": true
+    },
+    {
+      "html": "<script id=\"gumroad-prices\"></script>",
+      "referenced": true
+    },
+    {
+      "html": "gumroad-prices",
+      "referenced": true
+    },
+    {
+      "html": "data-gumroad-product",
+      "referenced": true
+    },
+    {
+      "html": "DATA-GUMROAD-PRODUCT",
+      "referenced": false
+    },
+    {
+      "html": "data-gumroad-products",
+      "referenced": true
+    },
+    {
+      "html": "gumroad-price",
+      "referenced": false
+    },
+    {
+      "html": "x gumroad-prices y",
+      "referenced": true
+    },
+    {
+      "html": "data-gumroad-\nproduct",
+      "referenced": false
+    },
+    {
+      "html": "<!-- data-gumroad-product -->",
+      "referenced": true
+    }
+  ]
+}

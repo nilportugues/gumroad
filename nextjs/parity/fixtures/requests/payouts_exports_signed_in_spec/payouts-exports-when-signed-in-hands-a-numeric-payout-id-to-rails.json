@@ -1,0 +1,2347 @@
+{
+  "version": 1,
+  "spec": "spec/requests/payouts_exports_signed_in_spec.rb",
+  "example": "Payouts exports when signed in hands a numeric payout id to Rails",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-11",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "payments": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "txn_id": "varchar",
+              "processor_fee_cents": "int",
+              "correlation_id": "varchar",
+              "processor": "varchar",
+              "amount_cents": "bigint",
+              "payment_address": "varchar",
+              "payout_period_end_date": "date",
+              "bank_account_id": "bigint",
+              "amount_cents_in_local_currency": "int",
+              "stripe_connect_account_id": "varchar",
+              "stripe_transfer_id": "varchar",
+              "stripe_internal_transfer_id": "varchar",
+              "currency": "varchar",
+              "flags": "int",
+              "json_data": "text",
+              "failure_reason": "varchar",
+              "processor_reversing_payout_id": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-23640h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-988d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1709294400",
+                "stripe_transfer_id": "tr_1709294400",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              },
+              {
+                "id": 2,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-14112h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-591d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1743595200",
+                "stripe_transfer_id": "tr_1743595200",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar023ff565_11@gumroad.com",
+                "encrypted_password": "$2a$04$G70HFGjM/JsEAnGzahclYuQ0SOPDAoqQk4xDOL4Rbq71iMtCe49wG",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "9.19.51.193",
+                "last_sign_in_ip": "0.135.5.166",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Exporting Seller",
+                "payment_address": "edgarcffcc27f_12@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "exportingseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1783621572462",
+                "account_created_ip": "78.208.231.195",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ORPJ5XAFEOXE5RJIPYSVHZHQMLBVBKHF",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "payments": 3,
+          "refund_policies": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "w9MRMJ5lG7RZAgLB94YZnysgC51hKYtizyUOivjmmM6x5c2YVcMFenydsVyQxWAVfMQ0r1z6xYsGubEedEpXzA",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "9FvEQP85LxR3FUHw4NL90vGl/9maCEQBhqHg3aaWNsMxK42ul+saRGVLIV1A1bejrr0/t0tLvpxWM9mbM/+jJgQT0UKVfWT5WAT5dq8bBDWbxAy1xI/gMM61WRAQ0Y1S+IpxXJWidkhAUKr15N2FN+UxIXGR3SJlBNwmlXfrLvKJMwYb3xDM11oAqejcb2rmbqMGXUfXxtYDMsJgaz1ooEVb0DGhobyHlmVbNZBGzDwj3FjWtJRQUquibp22GJC14F58kqZLkjzx4ujj8GGzcGLr+7SqNxnd9KEwHdzdw5R1VKlWxi0riQ6g+kaewl8ng+arFwG8wO1zLIZg52kSz5t1KIoW20qv9H9O6D7GrR0CuxUZ9QI609Em5wrf5SydfdhZ--X+2RyPGTz1fK/nIN--PkCH2tJVLJqmeBr4sfk00w==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": null,
+            "current_seller": null,
+            "csp_nonce": "DN9P7lFCGIufbGQ413uyupGY3wYn9gx663ObGhfcaL0=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "GLIFj8mXqgxj4hF84hpvG5AWQz0yBYxqmJxRhD5-mQVqhNknAjG0wkZ9ouGFWRaRx_J8Dw_WwoNRAO4QstJWBw",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "ab2Pg5eHpBxxos5PDxS5ONK3FujUlNm0iuWdGxOEWnEbi1MrXCG60lQ9fdJoV8CyhVMp2ulHl11DeSKPnyiVcw"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "payments": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "txn_id": "varchar",
+              "processor_fee_cents": "int",
+              "correlation_id": "varchar",
+              "processor": "varchar",
+              "amount_cents": "bigint",
+              "payment_address": "varchar",
+              "payout_period_end_date": "date",
+              "bank_account_id": "bigint",
+              "amount_cents_in_local_currency": "int",
+              "stripe_connect_account_id": "varchar",
+              "stripe_transfer_id": "varchar",
+              "stripe_internal_transfer_id": "varchar",
+              "currency": "varchar",
+              "flags": "int",
+              "json_data": "text",
+              "failure_reason": "varchar",
+              "processor_reversing_payout_id": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-23640h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-988d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1709294400",
+                "stripe_transfer_id": "tr_1709294400",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              },
+              {
+                "id": 2,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-14112h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-591d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1743595200",
+                "stripe_transfer_id": "tr_1743595200",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar023ff565_11@gumroad.com",
+                "encrypted_password": "$2a$04$G70HFGjM/JsEAnGzahclYuQ0SOPDAoqQk4xDOL4Rbq71iMtCe49wG",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "9.19.51.193",
+                "last_sign_in_ip": "0.135.5.166",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Exporting Seller",
+                "payment_address": "edgarcffcc27f_12@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "exportingseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1783621572462",
+                "account_created_ip": "78.208.231.195",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ORPJ5XAFEOXE5RJIPYSVHZHQMLBVBKHF",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "payments": 3,
+          "refund_policies": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/login",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "w9MRMJ5lG7RZAgLB94YZnysgC51hKYtizyUOivjmmM6x5c2YVcMFenydsVyQxWAVfMQ0r1z6xYsGubEedEpXzA",
+          "_gumroad_app_session_test": "9FvEQP85LxR3FUHw4NL90vGl/9maCEQBhqHg3aaWNsMxK42ul+saRGVLIV1A1bejrr0/t0tLvpxWM9mbM/+jJgQT0UKVfWT5WAT5dq8bBDWbxAy1xI/gMM61WRAQ0Y1S+IpxXJWidkhAUKr15N2FN+UxIXGR3SJlBNwmlXfrLvKJMwYb3xDM11oAqejcb2rmbqMGXUfXxtYDMsJgaz1ooEVb0DGhobyHlmVbNZBGzDwj3FjWtJRQUquibp22GJC14F58kqZLkjzx4ujj8GGzcGLr+7SqNxnd9KEwHdzdw5R1VKlWxi0riQ6g+kaewl8ng+arFwG8wO1zLIZg52kSz5t1KIoW20qv9H9O6D7GrR0CuxUZ9QI609Em5wrf5SydfdhZ--X+2RyPGTz1fK/nIN--PkCH2tJVLJqmeBr4sfk00w==",
+          "_gumroad_guid": "ccf02d5c-a1d9-45a1-92dd-8eaa6c9134b4"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "authenticity_token=GLIFj8mXqgxj4hF84hpvG5AWQz0yBYxqmJxRhD5-mQVqhNknAjG0wkZ9ouGFWRaRx_J8Dw_WwoNRAO4QstJWBw&user[login_identifier]=edgar023ff565_11%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+      },
+      "response": {
+        "status": 302,
+        "location": "http://app.test.gumroad.com:31337/dashboard",
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "uuXkwm8lU2rSZfXlC-BSlo8ohL6n3HU2b7p75HVQR-zI0zhqpINNpPf6Rnhsoysc2My7jJoPO9-mJsRw-fyI7g",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "mLXb/VcLslI0Ear1TtBQm0WzIhRBzGru801kFY17GP7dHMpmCP8d3328KtUm4tM4/USySsTK4Q3xBe8hORwJe2FJOTC+IVd/HUsMb2L8zIgD78QiXb31nl/CMOf9J2/rhJlpfpCEknVCdP2DLeI8vzQJBe7J+c1E2QimN3HYrFnEruypnMmZlbWwklM2tda6otAm4f32nijzoy6bOqesgKp2llCnefdMdV7Y1CFwfxaJAgY9SgaXRzDRdd4DJpmWQYtVA/A1cD3BLUvKTsaWPvSS1TdAV40b1zXU9XFJcZzPGhQgL3bID1k3PEXFzkKEY6DHa+TqFIHqGXqayFX0OfDM5oh0MUOYwxJsuF0Y8GMjY1bckUXH8bySMjO7VekyNgLejwpzMJFwhd4Jbkf/aCS9q6t7PMAzXvm+72oUSsePIhBbU3KI2plOMxTnpUf9JQS7O+kFzhkgoCvPSQZNJVvCWini8pfFAp8OesDlndAaTDCjBHyCasiqzPmb/QYaxFqZy4uvLeb2t9OtEGugQCNbTM10UtMBd0g6BMI4fu9yIHh5+KiiBouUfXZALvnNBz3RazoQ1ycSSDARnejUXWdXkhBih6hZm48Z+yRB0sRvloPNT8id06s4/G7+rMKqcVZ9--Gacx0HBXKfEy5qX4--bIiwD7irvL3TM01euXuJTw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "remember_user_token": {
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWMzTUVoR1IycE5MMHB6UlVGdVIzcGhhR05zV1hVaUxDSXhOemswTXprNE5EQXdMakFpWFE9PSIsImV4cCI6IjIwMjYtMTItMTFUMTI6MDA6MDAuMDAwWiIsInB1ciI6ImNvb2tpZS5yZW1lbWJlcl91c2VyX3Rva2VuIn19--30b889231447d0fabc704730d098c7190a7ad08a",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+720h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {
+        "seller_profiles": {
+          "inserted": [
+            {
+              "id": 1,
+              "seller_id": 1,
+              "highlight_color": "#ff90e8",
+              "background_color": "#ffffff",
+              "font": "ABC Favorit",
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "json_data": null,
+              "border_radius": "small",
+              "button_hover": "lift",
+              "seo_title": null,
+              "seo_description": null
+            }
+          ]
+        },
+        "users": {
+          "updated": [
+            {
+              "key": {
+                "id": 1
+              },
+              "changes": {
+                "remember_created_at": [
+                  null,
+                  "<now>"
+                ],
+                "sign_in_count": [
+                  0,
+                  1
+                ],
+                "current_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "last_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "current_sign_in_ip": [
+                  "9.19.51.193",
+                  "127.0.0.1"
+                ],
+                "last_sign_in_ip": [
+                  "0.135.5.166",
+                  "9.19.51.193"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "jobs": [],
+      "mails": [],
+      "http": [
+        {
+          "method": "GET",
+          "url": "https://api.pwnedpasswords.com/range/4B33A",
+          "response": {
+            "status": 200,
+            "body": ""
+          }
+        }
+      ]
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "payments": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "txn_id": "varchar",
+              "processor_fee_cents": "int",
+              "correlation_id": "varchar",
+              "processor": "varchar",
+              "amount_cents": "bigint",
+              "payment_address": "varchar",
+              "payout_period_end_date": "date",
+              "bank_account_id": "bigint",
+              "amount_cents_in_local_currency": "int",
+              "stripe_connect_account_id": "varchar",
+              "stripe_transfer_id": "varchar",
+              "stripe_internal_transfer_id": "varchar",
+              "currency": "varchar",
+              "flags": "int",
+              "json_data": "text",
+              "failure_reason": "varchar",
+              "processor_reversing_payout_id": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-23640h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-988d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1709294400",
+                "stripe_transfer_id": "tr_1709294400",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              },
+              {
+                "id": 2,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-14112h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-591d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1743595200",
+                "stripe_transfer_id": "tr_1743595200",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "seller_profiles": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "highlight_color": "varchar",
+              "background_color": "varchar",
+              "font": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "json_data": "json",
+              "border_radius": "varchar",
+              "button_hover": "varchar",
+              "seo_title": "varchar",
+              "seo_description": "text"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "highlight_color": "#ff90e8",
+                "background_color": "#ffffff",
+                "font": "ABC Favorit",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "json_data": null,
+                "border_radius": "small",
+                "button_hover": "lift",
+                "seo_title": null,
+                "seo_description": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar023ff565_11@gumroad.com",
+                "encrypted_password": "$2a$04$G70HFGjM/JsEAnGzahclYuQ0SOPDAoqQk4xDOL4Rbq71iMtCe49wG",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": "<now>",
+                "sign_in_count": 1,
+                "current_sign_in_at": "<now>",
+                "last_sign_in_at": "<now>",
+                "current_sign_in_ip": "127.0.0.1",
+                "last_sign_in_ip": "9.19.51.193",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Exporting Seller",
+                "payment_address": "edgarcffcc27f_12@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "exportingseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1783621572462",
+                "account_created_ip": "78.208.231.195",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ORPJ5XAFEOXE5RJIPYSVHZHQMLBVBKHF",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "payments": 3,
+          "refund_policies": 2,
+          "seller_profiles": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "uuXkwm8lU2rSZfXlC-BSlo8ohL6n3HU2b7p75HVQR-zI0zhqpINNpPf6Rnhsoysc2My7jJoPO9-mJsRw-fyI7g",
+          "_gumroad_app_session_test": "mLXb/VcLslI0Ear1TtBQm0WzIhRBzGru801kFY17GP7dHMpmCP8d3328KtUm4tM4/USySsTK4Q3xBe8hORwJe2FJOTC+IVd/HUsMb2L8zIgD78QiXb31nl/CMOf9J2/rhJlpfpCEknVCdP2DLeI8vzQJBe7J+c1E2QimN3HYrFnEruypnMmZlbWwklM2tda6otAm4f32nijzoy6bOqesgKp2llCnefdMdV7Y1CFwfxaJAgY9SgaXRzDRdd4DJpmWQYtVA/A1cD3BLUvKTsaWPvSS1TdAV40b1zXU9XFJcZzPGhQgL3bID1k3PEXFzkKEY6DHa+TqFIHqGXqayFX0OfDM5oh0MUOYwxJsuF0Y8GMjY1bckUXH8bySMjO7VekyNgLejwpzMJFwhd4Jbkf/aCS9q6t7PMAzXvm+72oUSsePIhBbU3KI2plOMxTnpUf9JQS7O+kFzhkgoCvPSQZNJVvCWini8pfFAp8OesDlndAaTDCjBHyCasiqzPmb/QYaxFqZy4uvLeb2t9OtEGugQCNbTM10UtMBd0g6BMI4fu9yIHh5+KiiBouUfXZALvnNBz3RazoQ1ycSSDARnejUXWdXkhBih6hZm48Z+yRB0sRvloPNT8id06s4/G7+rMKqcVZ9--Gacx0HBXKfEy5qX4--bIiwD7irvL3TM01euXuJTw==",
+          "_gumroad_guid": "ccf02d5c-a1d9-45a1-92dd-8eaa6c9134b4",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWMzTUVoR1IycE5MMHB6UlVGdVIzcGhhR05zV1hVaUxDSXhOemswTXprNE5EQXdMakFpWFE9PSIsImV4cCI6IjIwMjYtMTItMTFUMTI6MDA6MDAuMDAwWiIsInB1ciI6ImNvb2tpZS5yZW1lbWJlcl91c2VyX3Rva2VuIn19--30b889231447d0fabc704730d098c7190a7ad08a"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "F2cOJiv96FqKAVrg3u3G8CppiGg-K-t7qmkQOZTFLY1lUdKO4Fv2lK-e6X25rr96fY23WgP4pZJj9a-tGGnijw",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "s9pTkRX8WE9gnke5a+xVSBdlPBb5PiTTI+o6H6Nkrq5T4aenz+luy65bb3hmhYxrp9Ji57W+WchT5Tq3Xi5EqfOrs1KeidJvJH18b3y0bDFYN88Lj2boSjLUv+/uIfQ/IrGlCghioDttDNRsZ3DQT+aEhE7hlXbL+Mw3RgHAOjXvRIFUx/bH44yiBUSWz5CgsDfwEAv9MFa67+KRl8yjN2fM5kCHmrvmfALHjVD76ACwzfoC5xb9Zs/8kp+w7DiAQneMHxvkfA6dAVlptsNM1dwUKwzeNYuvhYKgQSJ9QrGIQU7r7FpDKb/Do4swhc9yrsXJqDNLaFGU847Rg59lNsfOrKPd7kfyawxE/DY3FykL2WqQg5QumsrSQucRFBPAx6kz0/FupR3cfabtwXMUbc47WGzf8IKbXOk1P/yIjGQpp/vfE4ylce7eTNBMqgAM1ZFoeQ3bjIk7wSUJ1ee+qeh8X6vFkRRJnsMUU94uY4Smb47Ky7adnvWiyTYulsfTJrNtJlQrFr1sPXPYKpw9z2xTytVu3WwdPgqNHtjnkKn0344Ks9JjRZUrTm2zdLKou7wYdBE97fn4oTw1FFOGvzohGJ1LBQhFToyZN1ga9wFSJXfIZvYFyZVKSOQdl7GmvwJi--L/1HtZtai2KLWALk--xnInsXF8jHY2R85Rmsa3Lw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": {
+              "id": "1783621572462",
+              "email": "edgar023ff565_11@gumroad.com",
+              "name": "Exporting Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "confirmed": true,
+              "team_memberships": [],
+              "can_create_brand_account": false,
+              "has_payout_setup_to_port": true,
+              "can_port_bank_payout_setup": true,
+              "will_copy_bank_payout": false,
+              "policies": {
+                "affiliate_requests_onboarding_form": {
+                  "update": true
+                },
+                "direct_affiliate": {
+                  "create": true,
+                  "update": true
+                },
+                "collaborator": {
+                  "create": true,
+                  "update": true
+                },
+                "product": {
+                  "create": true
+                },
+                "product_review_response": {
+                  "update": true
+                },
+                "balance": {
+                  "index": true,
+                  "export": true
+                },
+                "checkout_offer_code": {
+                  "create": true
+                },
+                "checkout_form": {
+                  "update": true
+                },
+                "upsell": {
+                  "create": true
+                },
+                "settings_payments_user": {
+                  "show": true
+                },
+                "settings_main_user": {
+                  "update_username": true
+                },
+                "settings_profile": {
+                  "manage_social_connections": true,
+                  "update": true
+                },
+                "settings_third_party_analytics_user": {
+                  "update": true
+                },
+                "installment": {
+                  "create": true
+                },
+                "workflow": {
+                  "create": true
+                },
+                "utm_link": {
+                  "index": true
+                },
+                "community": {
+                  "index": false
+                },
+                "churn": {
+                  "show": true
+                },
+                "page": {
+                  "index": true,
+                  "create": true
+                }
+              },
+              "promoted_nav_items": [],
+              "lazy_load_offscreen_discover_images": false
+            },
+            "current_seller": {
+              "id": "1783621572462",
+              "email": "edgar023ff565_11@gumroad.com",
+              "name": "Exporting Seller",
+              "subdomain": "exportingseller.test.gumroad.com:31337",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "is_buyer": false,
+              "time_zone": {
+                "name": "America/Los_Angeles",
+                "offset": "<utc_offset>"
+              },
+              "has_published_products": false,
+              "can_publish_products": true,
+              "publish_blocked_reason": null,
+              "no_payout_rail_in_compliance_country": false,
+              "legal_guardian_requirement_met": true,
+              "legal_guardian_unsupported": false,
+              "is_name_invalid_for_email_delivery": false,
+              "profile_background_color": "#ffffff",
+              "profile_highlight_color": "#ff90e8",
+              "profile_font": "ABC Favorit"
+            },
+            "csp_nonce": "8WaXhBRu3eafm22YjWIqueI5YiUKKiArF/W+o/axSM8=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "X1myCDXDy6nKVM3OfooQy_0awfRgpAR03KKeFmtPW4ctb26g_mXVZ-_LflMZyWlBqv7-xl13Sp0VPiGC5-OUhQ",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "current_user": {
+              "name": "Exporting Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "impersonated_user": null
+            },
+            "prompt_passkey_setup": true,
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "zUJ4HMwdV1qXMy8mizl6fCAWbUdp-9cg-AzfANoo4qy_dKS0B7tJlLKsnLvsegP2d_JSdVQomckxkGCUVoQtrg"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id",
+                "content": "1783621572462"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {
+        "dashboard_nav_promotions": {
+          "inserted": [
+            {
+              "id": 1,
+              "user_id": 1,
+              "nav_item": "seeded",
+              "created_at": "<now-698m>",
+              "updated_at": "<now-698m>"
+            }
+          ]
+        }
+      },
+      "jobs": [],
+      "mails": [],
+      "http": [
+        {
+          "method": "POST",
+          "url": "http://elasticsearch:9200/purchase-test/_search",
+          "contentType": "application/json",
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
+          "response": {
+            "status": 200,
+            "contentType": "application/json; charset=UTF-8",
+            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]},\"aggregations\":{\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"value\":0.0},\"fee_cents_total\":{\"value\":0.0},\"direct_affiliate_credit_amount_cents_total\":{\"value\":0.0},\"affiliate_credit_amount_cents_total\":{\"value\":0.0},\"amount_refunded_cents_total\":{\"value\":0.0},\"price_cents_total\":{\"value\":0.0},\"fee_refunded_cents_total\":{\"value\":0.0},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"value\":0.0}}}"
+          }
+        },
+        {
+          "method": "POST",
+          "url": "http://elasticsearch:9200/purchase-test/_search",
+          "contentType": "application/json",
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
+          "response": {
+            "status": 200,
+            "contentType": "application/json; charset=UTF-8",
+            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]},\"aggregations\":{\"affiliate_credit_fee_partially_refunded_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"direct_affiliate_credit_fee_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"affiliate_credit_fee_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"direct_affiliate_credit_amount_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}},\"affiliate_credit_amount_cents_own\":{\"doc_count\":0,\"total\":{\"value\":0.0}}}}"
+          }
+        }
+      ]
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "dashboard_nav_promotions": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "nav_item": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "nav_item": "seeded",
+                "created_at": "<now-698m>",
+                "updated_at": "<now-698m>"
+              }
+            ]
+          },
+          "payments": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "txn_id": "varchar",
+              "processor_fee_cents": "int",
+              "correlation_id": "varchar",
+              "processor": "varchar",
+              "amount_cents": "bigint",
+              "payment_address": "varchar",
+              "payout_period_end_date": "date",
+              "bank_account_id": "bigint",
+              "amount_cents_in_local_currency": "int",
+              "stripe_connect_account_id": "varchar",
+              "stripe_transfer_id": "varchar",
+              "stripe_internal_transfer_id": "varchar",
+              "currency": "varchar",
+              "flags": "int",
+              "json_data": "text",
+              "failure_reason": "varchar",
+              "processor_reversing_payout_id": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-23640h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-988d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1709294400",
+                "stripe_transfer_id": "tr_1709294400",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              },
+              {
+                "id": 2,
+                "user_id": 1,
+                "state": "completed",
+                "created_at": "<now-14112h>",
+                "updated_at": "<now>",
+                "txn_id": "txn-id",
+                "processor_fee_cents": 10,
+                "correlation_id": "12345",
+                "processor": "STRIPE",
+                "amount_cents": 5000,
+                "payment_address": null,
+                "payout_period_end_date": "<today-591d>",
+                "bank_account_id": null,
+                "amount_cents_in_local_currency": null,
+                "stripe_connect_account_id": "acct_1743595200",
+                "stripe_transfer_id": "tr_1743595200",
+                "stripe_internal_transfer_id": null,
+                "currency": "usd",
+                "flags": 0,
+                "json_data": "{}",
+                "failure_reason": null,
+                "processor_reversing_payout_id": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "seller_profiles": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "highlight_color": "varchar",
+              "background_color": "varchar",
+              "font": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "json_data": "json",
+              "border_radius": "varchar",
+              "button_hover": "varchar",
+              "seo_title": "varchar",
+              "seo_description": "text"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "highlight_color": "#ff90e8",
+                "background_color": "#ffffff",
+                "font": "ABC Favorit",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "json_data": null,
+                "border_radius": "small",
+                "button_hover": "lift",
+                "seo_title": null,
+                "seo_description": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar023ff565_11@gumroad.com",
+                "encrypted_password": "$2a$04$G70HFGjM/JsEAnGzahclYuQ0SOPDAoqQk4xDOL4Rbq71iMtCe49wG",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": "<now>",
+                "sign_in_count": 1,
+                "current_sign_in_at": "<now>",
+                "last_sign_in_at": "<now>",
+                "current_sign_in_ip": "127.0.0.1",
+                "last_sign_in_ip": "9.19.51.193",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Exporting Seller",
+                "payment_address": "edgarcffcc27f_12@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "exportingseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "1783621572462",
+                "account_created_ip": "78.208.231.195",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "ORPJ5XAFEOXE5RJIPYSVHZHQMLBVBKHF",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "dashboard_nav_promotions": 2,
+          "payments": 3,
+          "refund_policies": 2,
+          "seller_profiles": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/payouts/exports",
+        "headers": {
+          "accept": "application/json",
+          "content-type": "application/json",
+          "host": "app.test.gumroad.com:31337",
+          "x-csrf-token": "X1myCDXDy6nKVM3OfooQy_0awfRgpAR03KKeFmtPW4ctb26g_mXVZ-_LflMZyWlBqv7-xl13Sp0VPiGC5-OUhQ"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "F2cOJiv96FqKAVrg3u3G8CppiGg-K-t7qmkQOZTFLY1lUdKO4Fv2lK-e6X25rr96fY23WgP4pZJj9a-tGGnijw",
+          "_gumroad_app_session_test": "s9pTkRX8WE9gnke5a+xVSBdlPBb5PiTTI+o6H6Nkrq5T4aenz+luy65bb3hmhYxrp9Ji57W+WchT5Tq3Xi5EqfOrs1KeidJvJH18b3y0bDFYN88Lj2boSjLUv+/uIfQ/IrGlCghioDttDNRsZ3DQT+aEhE7hlXbL+Mw3RgHAOjXvRIFUx/bH44yiBUSWz5CgsDfwEAv9MFa67+KRl8yjN2fM5kCHmrvmfALHjVD76ACwzfoC5xb9Zs/8kp+w7DiAQneMHxvkfA6dAVlptsNM1dwUKwzeNYuvhYKgQSJ9QrGIQU7r7FpDKb/Do4swhc9yrsXJqDNLaFGU847Rg59lNsfOrKPd7kfyawxE/DY3FykL2WqQg5QumsrSQucRFBPAx6kz0/FupR3cfabtwXMUbc47WGzf8IKbXOk1P/yIjGQpp/vfE4ylce7eTNBMqgAM1ZFoeQ3bjIk7wSUJ1ee+qeh8X6vFkRRJnsMUU94uY4Smb47Ky7adnvWiyTYulsfTJrNtJlQrFr1sPXPYKpw9z2xTytVu3WwdPgqNHtjnkKn0344Ks9JjRZUrTm2zdLKou7wYdBE97fn4oTw1FFOGvzohGJ1LBQhFToyZN1ga9wFSJXfIZvYFyZVKSOQdl7GmvwJi--L/1HtZtai2KLWALk--xnInsXF8jHY2R85Rmsa3Lw==",
+          "_gumroad_guid": "ccf02d5c-a1d9-45a1-92dd-8eaa6c9134b4",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWMzTUVoR1IycE5MMHB6UlVGdVIzcGhhR05zV1hVaUxDSXhOemswTXprNE5EQXdMakFpWFE9PSIsImV4cCI6IjIwMjYtMTItMTFUMTI6MDA6MDAuMDAwWiIsInB1ciI6ImNvb2tpZS5yZW1lbWJlcl91c2VyX3Rva2VuIn19--30b889231447d0fabc704730d098c7190a7ad08a"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"payout_ids\":[123]}"
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Accept, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "AMjdP2G0e6z038/3/3qgF2U5bJnvpLJcKCCv8le6WrTQKMPGiD6IuhZA0G3Tfu8GKqSs32fdupXPdr1HITraKyGr9mE8lTC/evcPrhFUzwnpjh2SLDgZltGtvkANGy1NvxYhHieFUvdk/n/thiUA1qBDggMrRXDK03Tm4jQe7qkMZcPvMFrjIdk0SWsCQx31hCjMQIOWH0323bcaZwSf7B+VIaKKqIrEOxCH+aAPVPFeCsozaYrQAiug2qVqUd438BKNqHz0Jq2y0pCS/YPLKrN4doLT+v1xLB9bU9yHvAzmHWiwia2U2n2qQx6vaWOI+j63zCJSYEC4v4no+EfbLNocb0lI1qwYudN616w6sNng5oRXXmsmHQh55fpBYBPIhA1A999s4ZUwMLIxaBIiMcGhG/QWaNqMKwmxaMhSSFYogdZH+gYPRuCgUtbffnDv46ymKFtcHrFoN+6xbso5sk31Zblg7YdYsJVGl6PMON0gYTFR5vXYkeUehxefjvc+xvyqa6ZxNeNgPba+YJVGzFR2Uzn4iw2lcfHnrCSVIB/788WQcDqNkWnL8D+N+O0dfXA3kHulhW8TaiR+DRg/lXidon4CHRtz+LxyFjE4i71RZoAscOon4bvUcF+Nx2E28+5a--/c9AZzOkUKu4qWwk--GvWmzpwtHOLRBqOVeoJlPQ==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "error": "Invalid payouts"
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

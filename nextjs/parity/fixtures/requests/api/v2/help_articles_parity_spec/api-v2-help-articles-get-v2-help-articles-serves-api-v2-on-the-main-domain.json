@@ -1,0 +1,878 @@
+{
+  "version": 1,
+  "spec": "spec/requests/api/v2/help_articles_parity_spec.rb",
+  "example": "API v2 help articles GET /v2/help/articles serves /api/v2 on the main domain",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "f4c0b0e6dab03e87be5926f63de4838bfa03e183a4be6bac2f97edfe099f98b6895281dbeb522d130ec389143b5591543cb5ccf64781c528e961e403f196542c",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "oauth_access_tokens": {
+            "columns": {
+              "id": "int",
+              "resource_owner_id": "int",
+              "application_id": "int",
+              "token": "varchar",
+              "refresh_token": "varchar",
+              "expires_in": "int",
+              "revoked_at": "datetime",
+              "created_at": "datetime",
+              "scopes": "varchar",
+              "resource": "varchar",
+              "team_membership_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "resource_owner_id": 2,
+                "application_id": 1,
+                "token": "_FvjEPOhBgm4I5gnpaqNwCWfKUmRgmsM6i2KNpPEgmQ",
+                "refresh_token": null,
+                "expires_in": null,
+                "revoked_at": null,
+                "created_at": "<now>",
+                "scopes": "view_public",
+                "resource": null,
+                "team_membership_id": null
+              }
+            ]
+          },
+          "oauth_applications": {
+            "columns": {
+              "id": "int",
+              "name": "varchar",
+              "uid": "varchar",
+              "secret": "varchar",
+              "redirect_uri": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "owner_id": "int",
+              "owner_type": "varchar",
+              "affiliate_basis_points": "int",
+              "deleted_at": "datetime",
+              "scopes": "varchar",
+              "confidential": "tinyint",
+              "device_authorization_enabled": "tinyint",
+              "is_first_party_agent_app": "tinyint",
+              "mcp_dynamic_client": "tinyint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "app7",
+                "uid": "sZEWiAucYKB_SBMGI4qHgOSUIk7JSSFs18dNR60y900",
+                "secret": "iNmP5vwW_tWbGiRIyL2LaLBg5m9LPsWsopfNcgQ4UfI",
+                "redirect_uri": "https://foo",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "owner_id": 1,
+                "owner_type": "User",
+                "affiliate_basis_points": null,
+                "deleted_at": null,
+                "scopes": "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account",
+                "confidential": 0,
+                "device_authorization_enabled": 0,
+                "is_first_party_agent_app": 0,
+                "mcp_dynamic_client": 0
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgar7324a28b_25@gumroad.com",
+                "encrypted_password": "$2a$04$NlHL1LA1dK7RkKS7TnQQr.A2FxIhJAgHln/.X0T2bdFfV00ssQpre",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "134.242.123.118",
+                "last_sign_in_ip": "79.189.73.242",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgar8bf7b7b8_26@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgarb025133e13",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "3973797433512",
+                "account_created_ip": "110.24.72.150",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "7LAC4UBGVWWIYECQJDLSN4R4IDTV7OF5",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar93d59c56_27@gumroad.com",
+                "encrypted_password": "$2a$04$I0ov1xsy3LrwFmTthofl3eVr.52AiU7qm9QWRIB.3i4nH/WiuZ7ky",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "112.231.164.83",
+                "last_sign_in_ip": "54.120.83.67",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgar06d829e5_28@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar514368a914",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "6225539072241",
+                "account_created_ip": "18.94.194.202",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "RXR2STA6BQN5ZQYFPNSUY6H7R23AKA7X",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 3,
+          "oauth_access_tokens": 2,
+          "oauth_applications": 2,
+          "refund_policies": 3,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/api/v2/help/articles",
+        "query": "query=refund",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "authorization": "Bearer _FvjEPOhBgm4I5gnpaqNwCWfKUmRgmsM6i2KNpPEgmQ",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=3600, private",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "MMNJG8eb6XkOzLJn6yRVIjQAuQQUhgvsJRlPj-FT_EX_sGt_BpevBAbHIi4C3Z4So7_1PV_KfxUyLvafBO8_qg",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "gXg08/tIqlQQfZPN8p59FoKfC4lA1yqCA7fLvp+JLo5COJN7U2s/EnhErlP8SdNSkZZQeTHL172LwjdN7i54RbP+9Bw1boJ1IPkwwgO6zbo/FLLsVhmCzC3v/KZ96u+4XNRXoqaawE+sM5KgDaM6nL32V7bwXadys/8CnnKB4nApwH8wQhBZuDFvbQhjfyBRL2RtM21UcwA6FhzNIqZbhRKNOZ3zbjJj0okuZQ04M2tyMCSgeyf83HNg8MEmy++enDOZDkBB6gewr9HyFh+PDCek8Cbh3Pd5AA4aMiQRGCdOiE3Yg43ZbMf9RHLSGe1oL0MKOsrOTL4cOYjOCHjkPOL32Y5iCOAVj2vWaCCQ8UfTqKwemcjRcJedsQBrY+1pxVS6--vS2Islwe0Xb9CvIn--6EoPdP1APt/509VeT2UrMQ==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "success": true,
+          "help_articles": [
+            {
+              "slug": "47-how-to-refund-a-customer",
+              "title": "Issuing a refund",
+              "description": "In this article: Full refund Partial refund PayPal refund After issuing a refund Handling negative balances Refund fees Please only issue refunds from your Gumr",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/47-how-to-refund-a-customer"
+            },
+            {
+              "slug": "51-what-is-gumroads-refund-policy",
+              "title": "Gumroad's refund policy",
+              "description": "Every seller has their own unique needs and principles when it comes to issuing refunds, therefore Gumroad allows and encourages its sellers to set their own re",
+              "category": "Contact Gumroad",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/51-what-is-gumroads-refund-policy"
+            },
+            {
+              "slug": "190-how-do-i-get-a-refund",
+              "title": "How do I get a refund?",
+              "description": "In this article: Website purchases In-app purchases Website purchases When you buy a product from a Gumroad creator, Gumroad only processes payments on behalf o",
+              "category": "Receipts and refunds",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/190-how-do-i-get-a-refund"
+            },
+            {
+              "slug": "195-theres-an-issue-with-my-purchase",
+              "title": "There's an issue with my purchase",
+              "description": "The best resource you have when it comes to your purchase is the product's creator. You should contact them to: inquire about a refund find out the shipping sta",
+              "category": "Issues with your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/195-theres-an-issue-with-my-purchase"
+            },
+            {
+              "slug": "200-i-need-a-vat-refund",
+              "title": "I need a VAT refund",
+              "description": "We are required by the EU and UK law to collect and remit VAT on the transactions we are responsible for: every digital purchase in the EU and the UK, and physi",
+              "category": "Receipts and refunds",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/200-i-need-a-vat-refund"
+            },
+            {
+              "slug": "275-paypal-connect",
+              "title": "Adding PayPal to checkout",
+              "description": "In this article: Overview Set up Payouts page Refunds Chargebacks Sales tax and payment details Sales tax refunds Affiliates and PayPal Connect Privacy NSFW acc",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/275-paypal-connect"
+            },
+            {
+              "slug": "330-stripe-connect",
+              "title": "Connect your Stripe account to Gumroad",
+              "description": "In this article: Connect with Stripe Get paid to Stripe Issue refunds Manage disputes Disconnect your Stripe account Connecting your Stripe account allows you t",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/330-stripe-connect"
+            },
+            {
+              "slug": "335-custom-refund-policy",
+              "title": "Set a custom refund policy",
+              "description": "You can inform your customers of a product's refund policy before purchase; just add your policy in the product's settings. Specify the conditions under which y",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/335-custom-refund-policy"
+            },
+            {
+              "slug": "352-supporting-your-customers",
+              "title": "Supporting your customers",
+              "description": "You answer questions about your own products. This covers your support email, product-specific support emails, resending emails and receipts, refunds, reviews, blocking difficult customers, and when to send someone to Gumroad support instead.",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/352-supporting-your-customers"
+            },
+            {
+              "slug": "10-dealing-with-vat",
+              "title": "EU & UK VAT on Gumroad",
+              "description": "Disclaimer: This article is neither legal advice nor tax advice. We recommend that you speak to your tax advisor with any questions or concerns about tax report",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/10-dealing-with-vat"
+            },
+            {
+              "slug": "20-how-do-i-contact-gumroad",
+              "title": "Contact Gumroad",
+              "description": "If issues arise, Gumroad support is here to help. Below is a breakdown of what questions we can help answer and which questions creators answer.  Gumroad can he",
+              "category": "Contact Gumroad",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/20-how-do-i-contact-gumroad"
+            },
+            {
+              "slug": "62-testing-a-purchase",
+              "title": "Testing a purchase",
+              "description": "WARNING: Don't use your credit card to purchase your own items...do a test purchase instead! Once you've created a product, you can run a test purchaseto see wh",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/62-testing-a-purchase"
+            },
+            {
+              "slug": "64-is-gumroad-for-me",
+              "title": "Why choose Gumroad?",
+              "description": "Gumroad is perfect for anyone who makes and sells products. Writers, musicians, filmmakers, SaaS developers, educators (and all in-between) can sell on Gumroad ",
+              "category": "Open an account",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/64-is-gumroad-for-me"
+            },
+            {
+              "slug": "66-gumroads-fees",
+              "title": "Gumroad's fees",
+              "description": "Gumroad's fees are simple  For sales made on Gumroad's website, we charge a 10% + $0.50 fee per transaction. This does not include:  Credit card processing  PayPal fees There are ",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/66-gumroads-fees"
+            },
+            {
+              "slug": "70-can-i-sell-services",
+              "title": "Sell digital services: freelancing, coaching, and tip jars",
+              "description": "In this article: Coffee Restrictions If your account is 30 days old and you’ve received at least one payout from us, you can sell services on Gumroad! We curren",
+              "category": "Open an account",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/70-can-i-sell-services"
+            },
+            {
+              "slug": "74-the-analytics-dashboard",
+              "title": "The sales analytics dashboard",
+              "description": "In this article: Terms to know Diving into the data Churn Referrers Locations Exporting a customer sales CSV How to read your CSV Once you've started accruing sales, ",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/74-the-analytics-dashboard"
+            },
+            {
+              "slug": "76-license-keys",
+              "title": "License keys",
+              "description": "⚠️ Important: Our license key verification API requires the product_id parameter instead of product_permalink for all products created on or after Jan 9, 2023. ",
+              "category": "Advanced",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/76-license-keys"
+            },
+            {
+              "slug": "79-gumroad-discover",
+              "title": "Gumroad Discover",
+              "description": "In this article: Discover eligibility Setting product categories and tags Increase Sales on Discover with tags Filter your products by tag NSFW tag Improved Pro",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/79-gumroad-discover"
+            },
+            {
+              "slug": "82-membership-products",
+              "title": "Selling memberships and subscriptions",
+              "description": "In this article: Creating a membership Creating and managing tiers Reorder and share tiers Free trials Create fixed-length memberships Discounts on memberships ",
+              "category": "Add a product",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/82-membership-products"
+            },
+            {
+              "slug": "126-setting-up-versions-on-a-digital-product",
+              "title": "Setting up versions",
+              "description": "In this article: Add a version Add a free version Add different content to your versions Share a version Reorder versions Delete a version Reassign a customer t",
+              "category": "Add a product",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/126-setting-up-versions-on-a-digital-product"
+            },
+            {
+              "slug": "134-how-does-gumroad-handle-chargebacks",
+              "title": "Chargebacks on Gumroad",
+              "description": "In this article:  What’s a chargeback? Why do they happen? When chargebacks occur Understanding the Dispute form The timeline of a chargeback Multiple chargebac",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/134-how-does-gumroad-handle-chargebacks"
+            },
+            {
+              "slug": "149-adding-a-product",
+              "title": "Adding a product",
+              "description": "In this article: Watch a walkthrough Choose a product type Set a price Describe your product Provide additional product info Integrations Add content to your pr",
+              "category": "Add a product",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/149-adding-a-product"
+            },
+            {
+              "slug": "155-things-you-cant-sell-on-gumroad",
+              "title": "Things not allowed on Gumroad",
+              "description": "While Gumroad allows for a huge variety of products to be sold, we do have to delete products from time to time, and we suggest all new creators read through th",
+              "category": "Open an account",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/155-things-you-cant-sell-on-gumroad"
+            },
+            {
+              "slug": "160-suspension",
+              "title": "Account suspension FAQ",
+              "description": "In this article: Summary Terms of Service Violation High Risk & Fraudulent Sales High Chargeback Amounts Your account was rejected by our partners Frequently As",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/160-suspension"
+            },
+            {
+              "slug": "161-what-gumroad-considers-fraud",
+              "title": "Defining fraud on Gumroad",
+              "description": "In this article: What constitutes \"fraud\" Why we suspend and disable accounts Why was my account permanently suspended? What constitutes \"fraud\" We can't actual",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/161-what-gumroad-considers-fraud"
+            },
+            {
+              "slug": "169-how-to-send-an-update",
+              "title": "Send email updates",
+              "description": "In this article: Create an email Audience and channel selection Preview Save and publish Comments on emails Leaving a comment Deleting comments Get notification",
+              "category": "Market your work",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/169-how-to-send-an-update"
+            },
+            {
+              "slug": "191-a-guide-to-buying-on-gumroad",
+              "title": "A guide to buying on Gumroad",
+              "description": "In this article: Accepted payment options Gift cards and prepaid cards Is Gumroad safe? Do I need to have a Gumroad account to buy products? Profile vs Product ",
+              "category": "Before you buy",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/191-a-guide-to-buying-on-gumroad"
+            },
+            {
+              "slug": "192-how-do-i-cancel-my-membership",
+              "title": "How do I cancel my membership?",
+              "description": "There are two ways to cancel your subscription to a Gumroad membership: From your receipt From your library (if you have a Gumroad account) Cancellation will no",
+              "category": "Issues with your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/192-how-do-i-cancel-my-membership"
+            },
+            {
+              "slug": "194-i-need-an-invoice",
+              "title": "I need an invoice",
+              "description": "In this article: How to generate your invoice from the receipt VAT ID Don't have your receipt? Older purchases No W9? How to generate your invoice from the rece",
+              "category": "Receipts and refunds",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/194-i-need-an-invoice"
+            },
+            {
+              "slug": "196-contact-gumroad",
+              "title": "How do I contact Gumroad?",
+              "description": "Email support If an issue comes up, Gumroad support is here to help. Below is a breakdown of the types of issues Gumroad support can help with and the types of ",
+              "category": "Issues with your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/196-contact-gumroad"
+            },
+            {
+              "slug": "204-get-to-know-your-gumroad-receipt",
+              "title": "Get to know your Gumroad receipt",
+              "description": "In this article: Access your purchase content Generate an invoice Unsubscribe from emails Cancel memberships Contact the creator Access your purchased content A",
+              "category": "Receipts and refunds",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/204-get-to-know-your-gumroad-receipt"
+            },
+            {
+              "slug": "206-how-to-open-zip-and-rar-files",
+              "title": "How to open ZIP and RAR files",
+              "description": "On a Mac Locate the ZIP file and double-click on it. That's it. A new folder will be created and all unzipped files will be there, ready for use. If you’re tryi",
+              "category": "Accessing your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/206-how-to-open-zip-and-rar-files"
+            },
+            {
+              "slug": "214-why-was-i-charged-by-gumroad",
+              "title": "Why was I charged by Gumroad?",
+              "description": "Gumroad is a digital commerce platform that enables writers, musicians, filmmakers, designers, etc. to easily sell their products online. We provide payment pro",
+              "category": "Issues with your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/214-why-was-i-charged-by-gumroad"
+            },
+            {
+              "slug": "215-when-will-my-purchase-be-shipped",
+              "title": "When will my purchase be shipped?",
+              "description": "For shipping and product-related questions, contact the creator directly.",
+              "category": "Accessing your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/215-when-will-my-purchase-be-shipped"
+            },
+            {
+              "slug": "222-product-ratings-on-gumroad",
+              "title": "Product ratings and reviews",
+              "description": "In this article: Get customers to leave a rating View your ratings Organize products by rating on your profile How to remove ratings Customers can rate and leav",
+              "category": "Advanced",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/222-product-ratings-on-gumroad"
+            },
+            {
+              "slug": "249-affiliate-faq",
+              "title": "Becoming an affiliate on Gumroad",
+              "description": "In this article: Getting started Gumroad Affiliate Program Sticky affiliate links Reasons you might not be credited for a sale Can the affiliate links be shorte",
+              "category": "Add a product",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/249-affiliate-faq"
+            },
+            {
+              "slug": "252-multiple-accounts",
+              "title": "Having multiple accounts",
+              "description": "In this article: Transferring products or customers Transferring purchases Transferring ownership of account Yes, you can have more than one Gumroad account for",
+              "category": "Open an account",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/252-multiple-accounts"
+            },
+            {
+              "slug": "268-customer-dashboard",
+              "title": "The sales dashboard",
+              "description": "In this article: Search and Filter Customer drawer Discover or Offer codes Edit a customer's email address Tiers, versions, and variants Manage license keys Shi",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/268-customer-dashboard"
+            },
+            {
+              "slug": "269-balance-page",
+              "title": "The payouts dashboard",
+              "description": "In this article: Navigating the Payouts dashboard PayPal payouts Credits Bank withdrawals Understanding the payout period Account under review Navigating the Pa",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/269-balance-page"
+            },
+            {
+              "slug": "281-payout-delays",
+              "title": "Payout delays",
+              "description": "Creators are typically paid once a week, on the weekday that matches how they get paid (here's how to find your payout day, and here's how payouts work). However, payouts can sometimes be delayed—see reasons below. If yours is delayed by more than one week, please email us.",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/281-payout-delays"
+            },
+            {
+              "slug": "282-how-do-purchases-work-for-my-customers",
+              "title": "How Gumroad works for customers",
+              "description": "In this article: Buying on Gumroad without an account Receipts and Invoices VAT for your customers Credit and Debit card payments PayPal payments Making a test ",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/282-how-do-purchases-work-for-my-customers"
+            },
+            {
+              "slug": "283-fraudulent-purchases",
+              "title": "Fraudulent purchases",
+              "description": "In this article:  What is fraud? How do we prevent fraud? So you got an email… What this means What do I, a creator, have to do? What if we're wrong? Can I bloc",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/283-fraudulent-purchases"
+            },
+            {
+              "slug": "329-customer-moderation",
+              "title": "Customer Moderation",
+              "description": "In this article: Block customers from purchasing your products Revoke a customer's access to their content",
+              "category": "Advanced",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/329-customer-moderation"
+            },
+            {
+              "slug": "333-affiliates-on-gumroad",
+              "title": "Affiliates on Gumroad",
+              "description": "In this article: Your Affiliates - How does it work? Adding a new affiliate Method 1: Adding affiliates manually Method 2: Let affiliates sign up on their own E",
+              "category": "Market your work",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/333-affiliates-on-gumroad"
+            },
+            {
+              "slug": "336-singaporean-gst",
+              "title": "Singaporean GST on Gumroad",
+              "description": "If you live in Singapore and buy/sell things, chances are GST is a real headache. The question is, how do you apply it to sales made on Gumroad? The simple answ",
+              "category": "Get paid",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/336-singaporean-gst"
+            },
+            {
+              "slug": "341-collaborations",
+              "title": "Collaborate with another creator",
+              "description": "If you’ve worked with another creator to create a product for your audience, our Collaborators feature allows you to jointly manage the product and automaticall",
+              "category": "Add a product",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/341-collaborations"
+            },
+            {
+              "slug": "344-rate-and-review-your-purchase",
+              "title": "Rate and review your purchase",
+              "description": "Leaving a written review is the best way to give product feedback to both the creator and future potential customers. Leaving a review After you've purchased a ",
+              "category": "Accessing your purchase",
+              "audience": "customer",
+              "url": "http://app.test.gumroad.com:31337/help/article/344-rate-and-review-your-purchase"
+            },
+            {
+              "slug": "345-tipping",
+              "title": "Tipping",
+              "description": "Tips are optional extra payments customers can add to their purchase to show additional support for your work.",
+              "category": "Start selling",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/345-tipping"
+            },
+            {
+              "slug": "355-connect-ai-assistants-to-gumroad",
+              "title": "Connecting AI assistants to your Gumroad store",
+              "description": "Gumroad runs an MCP server, so an AI assistant that supports MCP can read your products, sales, and payouts and create product drafts from your chat. This covers which assistants work today, how to connect Claude, the permissions you grant, and how to revoke access.",
+              "category": "Advanced",
+              "audience": "creator",
+              "url": "http://app.test.gumroad.com:31337/help/article/355-connect-ai-assistants-to-gumroad"
+            }
+          ],
+          "count": 49
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

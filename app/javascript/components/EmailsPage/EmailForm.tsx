@@ -637,7 +637,7 @@ export const EmailForm = ({ context, installment, singleCustomerRecipient = null
   const isPublished = !!(installment?.external_id && installment.published_at);
 
   const validate = (action: SaveAction) => {
-    const invalidFieldRefsAndErrors: [React.RefObject<HTMLElement> | null, string][] = [];
+    const invalidFieldRefsAndErrors: [React.RefObject<HTMLElement | null> | null, string][] = [];
     const invalidFieldNames = new Set<InvalidFieldName>();
 
     if (form.data.installment.name.trim() === "") {

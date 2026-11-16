@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "spec": "spec/controllers/healthcheck_controller_spec.rb",
+  "example": "HealthcheckController GET 'long_running_jobs' when the only entries are older than the per-entry TTL (job died mid-run) returns 200 and prunes the stale entry",
+  "sessionCookie": "_gumroad_app_session_test",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "request": {
+        "source": "controller",
+        "method": "GET",
+        "path": "/healthcheck/long_running_jobs",
+        "headers": {
+          "host": "app.test.gumroad.com:31337",
+          "user-agent": "Rails Testing"
+        },
+        "remoteIp": "0.0.0.0"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "x-gr": "DEV",
+          "x-revision": "no-revision"
+        },
+        "cookies": {
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "body": "Long running jobs: no job in flight"
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

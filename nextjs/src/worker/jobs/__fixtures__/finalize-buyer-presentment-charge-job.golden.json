@@ -1,0 +1,1124 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a charge that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge held by a Gumroad account without a presentment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 3 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                3,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the same with an attempt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 3 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                3,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1,
+        2
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge with a presentment on a Gumroad account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "stripe",
+                "eur",
+                1000,
+                100,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge of a seller's account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 3 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                3,
+                7,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge with no merchant account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a charge whose merchant account row is gone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                4,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 4 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a presentment of another charge",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 3 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                3,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                7,
+                null,
+                null,
+                null,
+                null,
+                3,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `charge_presentments`.* FROM `charge_presentments` WHERE `charge_presentments`.`charge_id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "charge_id",
+              "processor",
+              "presentment_currency",
+              "presentment_total_cents",
+              "presentment_gumroad_amount_cents",
+              "stripe_fx_quote_id",
+              "stripe_fx_quote_expires_at",
+              "fx_rate",
+              "created_at",
+              "updated_at",
+              "rounding_delta_cents"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 3 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                3,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id as a float",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=1.0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Charge with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "FinalizeBuyerPresentmentChargeJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    }
+  ]
+}

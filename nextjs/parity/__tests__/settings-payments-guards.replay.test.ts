@@ -1,0 +1,306 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import path from "node:path";
+
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { closeAllRedis } from "@/server/infra/redis";
+
+import type { JobsChannel, RawJob } from "../src/channels";
+import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { loadFixture, type CapturedHttp } from "../src/fixture";
+import { startNextServer, type NextServer } from "../src/next-server";
+import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { reencryptCookies, redisSeeder } from "../src/session";
+
+// Replays spec/requests/settings_payments_guards_parity_spec.rb: the last exchange of each fixture is sent to `next dev` with
+// nextjs_settings_payments_guards on; a stand-in Rails receives whatever Node hands back, and a stand-in Stripe answers the recorded
+// calls (OUTBOUND_HTTP_STAND_IN), whose method, URL, form body and order must be the ones Rails made.
+const url = process.env.PARITY_DATABASE_URL;
+const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+const DIR = path.join("parity/fixtures/requests", "settings_payments_guards_parity_spec");
+const ROUTE_FLAGS = "nextjs_settings_payments_guards";
+const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
+
+// Examples after which PaypalMerchantAccountManager queues MerchantRegistrationMailer#paypal_account_updated for the seller.
+const ACCOUNT_UPDATED_MAIL = [
+  "of-the-seller-connects-",
+  "of-the-seller-takes-th",
+  "of-the-seller-removes-",
+  "of-the-seller-brings-b",
+  "of-the-seller-leaves-a",
+  "of-the-seller-notes-th",
+];
+
+const COMPARE = {
+  ignore: [
+    "response.headers.x-original-headers-class",
+    "response.headers.cache-control",
+    "response.headers.vary",
+    "response.headers.link",
+    "response.cookies.__profilin",
+    "response.cookies.XSRF-TOKEN.value",
+    "db.versions",
+    // A seeded row is as old as the replay, so a save may leave the second-granular timestamp as it was.
+    "db.users.updated.*.changes.updated_at",
+    "db.user_compliance_info.updated.*.changes.updated_at",
+    "db.merchant_accounts.updated.*.changes.updated_at",
+    "http",
+  ],
+};
+
+// A ported job Node enqueues is a BullMQ job wrapping the Sidekiq item; one whose body stays in Ruby goes to Sidekiq's own list.
+type Item = { class: string; args: unknown[]; queue: string; at?: number; created_at?: number; wrapped?: string };
+// The mail the request queued: the request spec's test adapter keeps it out of the fixture, so the test asserts it by name.
+let mailJobs: Item[] = [];
+
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const items: Item[] = [];
+      mailJobs = [];
+      const keep = (item: Item) => void (item.wrapped === "MailDeliveryJob" ? mailJobs.push(item) : items.push(item));
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        keep(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as Item);
+      }
+      for (const key of await redis.keys("queue:*"))
+        for (const raw of await redis.lrange(key, 0, -1)) keep(JSON.parse(raw) as Item);
+      // Sidekiq keeps a scheduled job's time as the score of its member, not in the item.
+      const scheduled = await redis.zrange("schedule", 0, -1, "WITHSCORES");
+      for (let index = 0; index < scheduled.length; index += 2)
+        items.push({ ...(JSON.parse(scheduled[index]!) as Item), at: Number(scheduled[index + 1]) });
+      // BullMQ and Sidekiq keep no common enqueue order and the clock ties within a millisecond, so jobs compare per record.
+      items.sort(
+        (a, b) => JSON.stringify(a.args).localeCompare(JSON.stringify(b.args)) || a.class.localeCompare(b.class),
+      );
+      return items.map((item) => ({
+        class: item.class,
+        args: item.args,
+        queue: item.queue,
+        ...(item.at === undefined ? {} : { at: item.at }),
+      }));
+    },
+  };
+}
+
+const cases = existsSync(DIR)
+  ? readdirSync(DIR)
+      .filter((file) => file.endsWith(".json"))
+      .map(
+        (file) =>
+          [
+            file.replace(/\.json$/u, ""),
+            path.join(DIR, file),
+            loadFixture(path.join(DIR, file)).exchanges.length - 1,
+          ] as const,
+      )
+  : [];
+
+describe.skipIf(!url)("Settings::PaymentsController guards", () => {
+  let client: PrismaClient;
+  let sql: SqlExecutor;
+  let redis: Redis;
+  let server: NextServer;
+  let rails: Server;
+  let standIn: Server;
+  const handedBack: { method: string; url: string; body: string }[] = [];
+  const recorded: CapturedHttp[] = [];
+  const received: { method: string; url: string; contentType: string | undefined; body: string }[] = [];
+  const saved = { ...process.env };
+
+  beforeAll(async () => {
+    client = new PrismaClient({ datasourceUrl: url });
+    sql = prismaExecutor(client);
+    const [hostAndPort = "", db = "0"] = redisHost.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    redis = new Redis({ host, port: Number(port), db: Number(db) });
+    rails = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        response.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    const railsPort = (rails.address() as { port: number }).port;
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          contentType: request.headers["content-type"],
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recorded.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
+    server = await startNextServer({
+      RAILS_ENV: "test",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      STRIPE_API_KEY: "sk_test_parity",
+      PAYPAL_PARTNER_CLIENT_ID: testEnv("PAYPAL_PARTNER_CLIENT_ID") ?? "",
+      PAYPAL_PARTNER_CLIENT_SECRET: "parity-paypal-partner-client-secret",
+      PAYPAL_PARTNER_MERCHANT_ID: testEnv("PAYPAL_PARTNER_MERCHANT_ID") ?? "",
+      SECRET_KEY_BASE,
+      DATABASE_URL: url!,
+      REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: redisHost,
+      DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
+      AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
+      ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
+    });
+  }, FIRST_COMPILE_TIMEOUT_MS);
+
+  const replayOptions = (file: string) => {
+    const ignore = [...COMPARE.ignore];
+    // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
+    if (readFileSync(file, "utf8").includes("rails exception debug page"))
+      ignore.push("response.cookies", "response.body", "response.json");
+    return replayOptionsFor({ ignore });
+  };
+
+  const replayOptionsFor = (compare: { ignore: string[] }) => ({
+    sql,
+    jobs: redisJobs(redis),
+    redis: {
+      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+    },
+    transport: httpTransport(server.baseUrl),
+    interceptHttp: false,
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    compare,
+  });
+
+  afterAll(async () => {
+    await server.stop();
+    rails.close();
+    standIn.close();
+    await closeAllRedis();
+    await redis.quit();
+    await client.$disconnect();
+    process.env = saved;
+  });
+
+  it("finds the fixtures", () => {
+    expect(cases.length).toBeGreaterThan(0);
+  });
+
+  it(
+    "compiles the handlers",
+    async () => {
+      for (const [, file, index] of cases.slice(0, 2))
+        await replayFixtureExchange(file, index, replayOptions(file)).catch(() => undefined);
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+
+  it.each(cases)(
+    "%s",
+    async (name, file, index) => {
+      try {
+        const fixture = loadFixture(file);
+        recorded.splice(0, recorded.length, ...fixture.exchanges[index]!.http);
+        received.length = 0;
+        // Whatever Node cannot prove goes to Rails whole, before its first write.
+        if (name.includes("-hands-")) {
+          handedBack.length = 0;
+          const handed = await replayFixtureExchange(fixture, index, replayOptions(file));
+          const request = fixture.exchanges[index]!.request;
+          expect(handedBack).toHaveLength(1);
+          expect(handedBack[0]).toMatchObject({
+            method: request.method,
+            url: request.query ? `${request.path}?${request.query}` : request.path,
+          });
+          // A signed-in GET to /settings runs seed_dashboard_nav_items before the action, whether Node or Rails serves it; the
+          // seed is idempotent, so Rails finds the marker on the handed-back request.
+          expect(
+            Object.keys(handed.exchanges[0]!.actual.db).filter((table) => table !== "dashboard_nav_promotions"),
+          ).toEqual([]);
+          return;
+        }
+        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        const expectedMail = ACCOUNT_UPDATED_MAIL.some((fragment) => name.includes(fragment));
+        expect(mailJobs).toHaveLength(expectedMail ? 1 : 0);
+        if (expectedMail) {
+          expect(mailJobs[0]!.queue).toBe("default");
+          const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+          expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "default" });
+          const [mailer, method, delivery, params] = wrapped.arguments as [
+            string,
+            string,
+            string,
+            { args: number[]; _aj_ruby2_keywords: string[] },
+          ];
+          expect([mailer, method, delivery]).toEqual([
+            "MerchantRegistrationMailer",
+            "paypal_account_updated",
+            "deliver_now",
+          ]);
+          expect(params._aj_ruby2_keywords).toEqual(["args"]);
+          expect(params.args).toHaveLength(1);
+        }
+        // The port made the calls Rails made: the same method, URL, content type and form body, in the same order.
+        // Compared as text so a mismatch prints both lists in full.
+        expect(
+          JSON.stringify(
+            received.map(({ method, url: original, body }) => ({ method, url: original.replace(/\?$/u, ""), body })),
+            null,
+            1,
+          ),
+        ).toEqual(
+          JSON.stringify(
+            fixture.exchanges[index]!.http.map((call) => ({
+              method: call.method,
+              url: call.url.replace(/\?$/u, ""),
+              body: call.body ?? "",
+            })),
+            null,
+            1,
+          ),
+        );
+      } catch (error) {
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
+        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+});

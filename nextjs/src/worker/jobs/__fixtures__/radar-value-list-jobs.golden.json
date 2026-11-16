@@ -1,0 +1,5479 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "add: an unknown block",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        99
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "add: sync switched off",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": false,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "add: a block type Radar does not enforce",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "ip_address",
+                "203.0.113.5",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "ip_address",
+              "203.0.113.5",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "add: a block that was cleared",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "add: a fingerprint that is not alphanumeric",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "fp-bad!",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "fp-bad!",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "charge_processor_fingerprint",
+              "fp-bad!",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "add: an email into the existing list",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a card fingerprint into the existing list",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "Hxj29skLpq0a1B",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "Hxj29skLpq0a1B",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'charge_processor_fingerprint' AND `platform_blocks`.`object_value` = 'Hxj29skLpq0a1B' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "charge_processor_fingerprint",
+              "Hxj29skLpq0a1B",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_2\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_cards\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_2\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_cards&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_2&value=Hxj29skLpq0a1B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: the list is created when it does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_lists",
+            "query": null,
+            "body": "alias=gumroad_blocked_emails&name=Gumroad+Blocked+Emails&item_type=email"
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a list created by someone else in between",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Value list alias already exists\",\"param\":\"value\"}}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_lists",
+            "query": null,
+            "body": "alias=gumroad_blocked_emails&name=Gumroad+Blocked+Emails&item_type=email"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a list that cannot be found after the race",
+      "error": {
+        "class": "RuntimeError",
+        "message": "Radar value list 'gumroad_blocked_emails' could not be found after race recovery"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Value list alias already exists\",\"param\":\"value\"}}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_lists",
+            "query": null,
+            "body": "alias=gumroad_blocked_emails&name=Gumroad+Blocked+Emails&item_type=email"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: another list creation error is raised",
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "Invalid alias"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Invalid alias\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_lists",
+            "query": null,
+            "body": "alias=gumroad_blocked_emails&name=Gumroad+Blocked+Emails&item_type=email"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: an item that already exists by code",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"value_list_item_already_exists\",\"message\":\"A value list item already exists with that value.\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: an item that already exists by message",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"That item already exists in the list\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: another item error is raised",
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "Invalid value"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Invalid value\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a Stripe outage is raised",
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "Internal error"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            500,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"api_error\",\"code\":null,\"message\":\"Internal error\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a block cleared while the item was added is taken back out",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = NULL WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = NULL WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a cleared block whose item is already gone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = NULL WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a cleared block that Stripe no longer knows",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = NULL WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ],
+          [
+            404,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such value list\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a cleared block whose delete fails",
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "Cannot delete"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = NULL WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Cannot delete\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a block that expired is not enforced",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-06-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-06-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-06-01T00:00:00.000000Z"
+              },
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: a block that expires later stays",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2027-06-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2027-06-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2027-06-01T00:00:00.000000Z"
+              },
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "add: the id given as a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::AddValueListItemJob",
+      "args": [
+        "1"
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: an unknown block",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        99
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "remove: sync switched off",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": false,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "remove: a block type Radar does not enforce",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email_domain",
+                "example.org",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email_domain",
+              "example.org",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "remove: a block that is active again",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "remove: a fingerprint that is not alphanumeric",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "fp-bad!",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "fp-bad!",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "charge_processor_fingerprint",
+              "fp-bad!",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [],
+        "requests": []
+      }
+    },
+    {
+      "name": "remove: an email taken out of the list",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: an item listed twice is deleted twice",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"},{\"id\":\"rsli_2\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_2\",\"deleted\":true}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_2",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a value that is not in the list",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a card fingerprint taken out of the list",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "Hxj29skLpq0a1B",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "charge_processor_fingerprint",
+                "Hxj29skLpq0a1B",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'charge_processor_fingerprint' AND `platform_blocks`.`object_value` = 'Hxj29skLpq0a1B' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "charge_processor_fingerprint",
+              "Hxj29skLpq0a1B",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_2\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_cards\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_3\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_3\",\"deleted\":true}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_cards&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_2&value=Hxj29skLpq0a1B",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_3",
+            "query": "",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: the list is created when it does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_lists",
+            "query": null,
+            "body": "alias=gumroad_blocked_emails&name=Gumroad+Blocked+Emails&item_type=email"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a list the item call cannot find",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            404,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such value list\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: another listing error is raised",
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "Bad request"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Bad request\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a block added back while the item was removed is put back",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = '2026-01-01 00:00:00' WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = '2026-01-01 00:00:00' WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a re-added item that already exists",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = '2026-01-01 00:00:00' WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"value_list_item_already_exists\",\"message\":\"A value list item already exists with that value.\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: a re-add that fails",
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "Invalid value"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `platform_blocks` SET `platform_blocks`.`blocked_at` = '2026-01-01 00:00:00' WHERE `platform_blocks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        1
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsli_1\",\"object\":\"radar.value_list_item\",\"value\":\"buyer@example.com\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"id\":\"rsli_1\",\"deleted\":true}"
+          ],
+          [
+            400,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_err"
+            },
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Invalid value\",\"param\":\"value\"}}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          },
+          {
+            "method": "DELETE",
+            "path": "/v1/radar/value_list_items/rsli_1",
+            "query": "",
+            "body": null
+          },
+          {
+            "method": "POST",
+            "path": "/v1/radar/value_list_items",
+            "query": null,
+            "body": "value_list=rsl_1&value=buyer%40example.com"
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove: the id given as a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "buyer@example.com",
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`object_value` = 'buyer@example.com' LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "platform_blocks": {
+          "fields": [
+            "id",
+            "object_type",
+            "object_value",
+            "blocked_at",
+            "expires_at",
+            "blocked_by",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              "email",
+              "buyer@example.com",
+              null,
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "Radar::RemoveValueListItemJob",
+      "args": [
+        "1"
+      ],
+      "enabled": true,
+      "stripe": {
+        "responses": [
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[{\"id\":\"rsl_1\",\"object\":\"radar.value_list\",\"alias\":\"gumroad_blocked_emails\",\"item_type\":\"email\"}],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ],
+          [
+            200,
+            {
+              "Content-Type": "application/json",
+              "Request-Id": "req_ok"
+            },
+            "{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/radar/value_lists\"}"
+          ]
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_lists",
+            "query": "alias=gumroad_blocked_emails&limit=1",
+            "body": null
+          },
+          {
+            "method": "GET",
+            "path": "/v1/radar/value_list_items",
+            "query": "value_list=rsl_1&value=buyer%40example.com",
+            "body": null
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,2779 @@
+{
+  "existing": [
+    {
+      "id": 1,
+      "email": "taken@example.com",
+      "username": "takenname",
+      "deleted_at": null,
+      "is_team_member": 0,
+      "confirmed_at": null,
+      "json_data": null
+    },
+    {
+      "id": 2,
+      "email": "gone@example.com",
+      "username": "goneuser",
+      "deleted_at": "2024-01-01 00:00:00",
+      "is_team_member": 0,
+      "confirmed_at": null,
+      "json_data": null
+    },
+    {
+      "id": 3,
+      "email": "member@example.com",
+      "username": "member",
+      "deleted_at": null,
+      "is_team_member": 1,
+      "confirmed_at": "2024-01-01 00:00:00",
+      "json_data": "{\"payout_frequency\":\"weekly\"}"
+    }
+  ],
+  "platform_blocks": [
+    {
+      "object_type": "email_domain",
+      "object_value": "blocked.example",
+      "active": true
+    },
+    {
+      "object_type": "email_domain",
+      "object_value": "expired.example",
+      "active": false
+    },
+    {
+      "object_type": "ip_address",
+      "object_value": "10.0.0.9",
+      "active": true
+    }
+  ],
+  "gmail_abuse": [
+    "suspended@gmail.com"
+  ],
+  "cases": [
+    {
+      "name": "valid new account",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "blank email without provider",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "   ",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "email",
+            "type": "blank",
+            "message": "can't be blank"
+          }
+        ],
+        "full_messages": [
+          "Email can't be blank"
+        ],
+        "attributes": {
+          "email": null,
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "blank email with provider",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "provider": "twitter"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": null,
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "provider",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "email already taken",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "taken@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "An account already exists with this email."
+          }
+        ],
+        "full_messages": [
+          "An account already exists with this email."
+        ],
+        "attributes": {
+          "email": "taken@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "email held by a deleted account",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "gone@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "This email address belonged to a Gumroad account that was deleted, so it can't be used for a new account yet. Email support@gumroad.com and we'll free it up for you."
+          }
+        ],
+        "full_messages": [
+          "This email address belonged to a Gumroad account that was deleted, so it can't be used for a new account yet. Email support@gumroad.com and we'll free it up for you."
+        ],
+        "attributes": {
+          "email": "gone@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "malformed email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "not-an-email",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "email",
+            "type": "invalid",
+            "message": "is invalid"
+          }
+        ],
+        "full_messages": [
+          "Email is invalid"
+        ],
+        "attributes": {
+          "email": "not-an-email",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "email with invisible characters and spaces",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "‏  spaced @example.com ",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "email",
+            "type": "invalid",
+            "message": "is invalid"
+          }
+        ],
+        "full_messages": [
+          "Email is invalid"
+        ],
+        "attributes": {
+          "email": "spaced @example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "disposable email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "someone@mailinator.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "email",
+            "type": null,
+            "message": "is from a disposable email provider and cannot be used"
+          }
+        ],
+        "full_messages": [
+          "Email is from a disposable email provider and cannot be used"
+        ],
+        "attributes": {
+          "email": "someone@mailinator.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "blocked email domain",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "someone@blocked.example",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": "blocked_signup",
+            "message": "Something went wrong."
+          }
+        ],
+        "full_messages": [
+          "Something went wrong."
+        ],
+        "attributes": {
+          "email": "someone@blocked.example",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "expired email domain block",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "someone@expired.example",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "someone@expired.example",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "blocked signup ip",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "account_created_ip": "10.0.0.9"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": "blocked_signup",
+            "message": "Something went wrong."
+          }
+        ],
+        "full_messages": [
+          "Something went wrong."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "account_created_ip",
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "gmail variant of a suspended account",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "Sus.Pended+promo@googlemail.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": "blocked_signup",
+            "message": "Something went wrong."
+          }
+        ],
+        "full_messages": [
+          "Something went wrong."
+        ],
+        "attributes": {
+          "email": "Sus.Pended+promo@googlemail.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "missing password",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": null,
+        "password_confirmation": null
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "password",
+            "type": "blank",
+            "message": "can't be blank"
+          }
+        ],
+        "full_messages": [
+          "Password can't be blank"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "password confirmation mismatch",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "different"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "password_confirmation",
+            "type": "confirmation",
+            "message": "doesn't match Password"
+          }
+        ],
+        "full_messages": [
+          "Password confirmation doesn't match Password"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "short password",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "abc",
+        "password_confirmation": "abc"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "password",
+            "type": "too_short",
+            "message": "is too short (minimum is 4 characters)"
+          }
+        ],
+        "full_messages": [
+          "Password is too short (minimum is 4 characters)"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "password at the length limits",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "password_confirmation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "over-long password",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "password_confirmation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "password",
+            "type": "too_long",
+            "message": "is too long (maximum is 127 characters)"
+          }
+        ],
+        "full_messages": [
+          "Password is too long (maximum is 127 characters)"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "unknown timezone",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "timezone": "Mars/Olympus"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "timezone",
+            "type": "inclusion",
+            "message": "Mars/Olympus is not a known time zone."
+          }
+        ],
+        "full_messages": [
+          "Timezone Mars/Olympus is not a known time zone."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "timezone"
+        ]
+      }
+    },
+    {
+      "name": "known timezone",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "timezone": "Eastern Time (US & Canada)"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "timezone"
+        ]
+      }
+    },
+    {
+      "name": "unsupported currency",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "currency_type": "xyz"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "currency_type",
+            "type": "inclusion",
+            "message": "xyz is not a supported currency."
+          }
+        ],
+        "full_messages": [
+          "Currency type xyz is not a supported currency."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "currency_type",
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "unknown recommendation type",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "recommendation_type": "everything"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "recommendation_type",
+            "type": "inclusion",
+            "message": "is not included in the list"
+          }
+        ],
+        "full_messages": [
+          "Recommendation type is not included in the list"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "custom fee out of range",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "custom_fee_per_thousand": 1001
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "custom_fee_per_thousand",
+            "type": "less_than_or_equal_to",
+            "message": "must be less than or equal to 1000"
+          }
+        ],
+        "full_messages": [
+          "Custom fee per thousand must be less than or equal to 1000"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"custom_fee_per_thousand\":1001}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "custom fee not an integer",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "custom_fee_per_thousand": 12.5
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "custom_fee_per_thousand",
+            "type": "not_an_integer",
+            "message": "must be an integer"
+          }
+        ],
+        "full_messages": [
+          "Custom fee per thousand must be an integer"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"custom_fee_per_thousand\":12.5}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "custom fee as a numeric string",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "custom_fee_per_thousand": "50"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"custom_fee_per_thousand\":\"50\"}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "custom fee as text",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "custom_fee_per_thousand": "abc"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "custom_fee_per_thousand",
+            "type": "not_a_number",
+            "message": "is not a number"
+          }
+        ],
+        "full_messages": [
+          "Custom fee per thousand is not a number"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"custom_fee_per_thousand\":\"abc\"}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "bad payout frequency",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "payout_frequency": "hourly"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "payout_frequency",
+            "type": null,
+            "message": "must be daily, weekly, monthly, or quarterly"
+          }
+        ],
+        "full_messages": [
+          "Payout frequency must be daily, weekly, monthly, or quarterly"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"payout_frequency\":\"hourly\"}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "ppp limit out of range",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "purchasing_power_parity_limit": 0
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "purchasing_power_parity_limit",
+            "type": "greater_than_or_equal_to",
+            "message": "must be greater than or equal to 1"
+          }
+        ],
+        "full_messages": [
+          "Purchasing power parity limit must be greater than or equal to 1"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "purchasing_power_parity_limit",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "name with a colon and padding",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "name": "  Jane:   Doe  "
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "name",
+            "type": "invalid",
+            "message": "cannot contain colons (:) as it causes email delivery problems. Please remove any colons from your name and try again."
+          }
+        ],
+        "full_messages": [
+          "Name cannot contain colons (:) as it causes email delivery problems. Please remove any colons from your name and try again."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": "Jane: Doe",
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "name",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "name too long",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "name": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "name",
+            "type": "too_long",
+            "message": "Your name is too long. Please try again with a shorter one."
+          }
+        ],
+        "full_messages": [
+          "Name Your name is too long. Please try again with a shorter one."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "name",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "invalid google analytics id",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "google_analytics_id": "UA-1234"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "Please enter a valid Google Analytics ID"
+          }
+        ],
+        "full_messages": [
+          "Please enter a valid Google Analytics ID"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": "UA-1234",
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "google_analytics_id",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "google analytics id inside text",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "google_analytics_id": "  prefix G-ABC123  "
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": "prefix G-ABC123",
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "google_analytics_id",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "tiktok pixel with padding",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "tiktok_pixel_id": "  C4ABC123  "
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"tiktok_pixel_id\":\"C4ABC123\"}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "lowercase tiktok pixel",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "tiktok_pixel_id": "c4abc"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "Please enter a valid TikTok Pixel ID"
+          }
+        ],
+        "full_messages": [
+          "Please enter a valid TikTok Pixel ID"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"tiktok_pixel_id\":\"c4abc\"}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "facebook pixel with padding",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "facebook_pixel_id": " \t123456789\n"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": "123456789",
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "facebook_pixel_id",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "facebook pixel with a leading zero",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "facebook_pixel_id": "0123"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "Please enter a valid Facebook Pixel ID"
+          }
+        ],
+        "full_messages": [
+          "Please enter a valid Facebook Pixel ID"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": "0123",
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "facebook_pixel_id",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "valid facebook meta tag",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "facebook_meta_tag": "<meta name=\"facebook-domain-verification\" content=\"abc123\" />"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": "<meta name=\"facebook-domain-verification\" content=\"abc123\" />",
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "facebook_meta_tag",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "invalid facebook meta tag",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "facebook_meta_tag": "<meta name='facebook-domain-verification' content=\"abc\" />"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": "<meta name='facebook-domain-verification' content=\"abc\" />",
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "facebook_meta_tag",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "malformed facebook meta tag",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "facebook_meta_tag": "<meta name=fb content=x>"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "Please enter a valid meta tag"
+          }
+        ],
+        "full_messages": [
+          "Please enter a valid meta tag"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": "<meta name=fb content=x>",
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "facebook_meta_tag",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "valid kindle email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "kindle_email": "Reader@KINDLE.com"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "kindle_email",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "invalid kindle email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "kindle_email": "reader@example.com"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "kindle_email",
+            "type": "invalid",
+            "message": "is invalid"
+          }
+        ],
+        "full_messages": [
+          "Kindle email is invalid"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "kindle_email",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "invalid support email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "support_email": "nope"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "support_email",
+            "type": "invalid",
+            "message": "is invalid"
+          }
+        ],
+        "full_messages": [
+          "Support email is invalid"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": "nope",
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "support_email"
+        ]
+      }
+    },
+    {
+      "name": "reserved support email",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "support_email": "help@Gumroad.com"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "support_email",
+            "type": null,
+            "message": "is reserved"
+          }
+        ],
+        "full_messages": [
+          "Support email is reserved"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": "help@Gumroad.com",
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "support_email"
+        ]
+      }
+    },
+    {
+      "name": "invalid payment address",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "payment_address": "pay me"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "payment_address",
+            "type": "invalid",
+            "message": "is invalid"
+          }
+        ],
+        "full_messages": [
+          "Payment address is invalid"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "payment_address",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "username taken",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "takenname"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "taken",
+            "message": "has already been taken"
+          }
+        ],
+        "full_messages": [
+          "Username has already been taken"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "takenname",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username too short",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "ab"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "too_short",
+            "message": "is too short (minimum is 3 characters)"
+          }
+        ],
+        "full_messages": [
+          "Username is too short (minimum is 3 characters)"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "ab",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username too long",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "aaaaaaaaaaaaaaaaaaaaa"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "too_long",
+            "message": "is too long (maximum is 20 characters)"
+          }
+        ],
+        "full_messages": [
+          "Username is too long (maximum is 20 characters)"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "aaaaaaaaaaaaaaaaaaaaa",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username reserved",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "admin"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "exclusion",
+            "message": "is reserved"
+          }
+        ],
+        "full_messages": [
+          "Username is reserved"
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "admin",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username digits only",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "12345"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "invalid",
+            "message": "has to contain at least one letter and may only contain lower case letters and numbers."
+          }
+        ],
+        "full_messages": [
+          "Username has to contain at least one letter and may only contain lower case letters and numbers."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "12345",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username uppercase",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "Seller"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "invalid",
+            "message": "has to contain at least one letter and may only contain lower case letters and numbers."
+          }
+        ],
+        "full_messages": [
+          "Username has to contain at least one letter and may only contain lower case letters and numbers."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "Seller",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username gambling",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "slotgacor77"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": null,
+            "message": "isn't available. If you represent this company, email support@gumroad.com and we'll set up your account."
+          }
+        ],
+        "full_messages": [
+          "Username isn't available. If you represent this company, email support@gumroad.com and we'll set up your account."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "slotgacor77",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username brand on another domain",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "nikeofficial"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": null,
+            "message": "isn't available. If you represent this company, email support@gumroad.com and we'll set up your account."
+          }
+        ],
+        "full_messages": [
+          "Username isn't available. If you represent this company, email support@gumroad.com and we'll set up your account."
+        ],
+        "attributes": {
+          "email": "new@example.com",
+          "username": "nikeofficial",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type",
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "username blank becomes nil",
+      "existing_id": null,
+      "persist_first": null,
+      "assign": {
+        "email": "new@example.com",
+        "password": "secret-password",
+        "password_confirmation": "secret-password",
+        "username": "   "
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "new@example.com",
+          "username": null,
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data",
+          "recommendation_type"
+        ]
+      }
+    },
+    {
+      "name": "existing: no changes",
+      "existing_id": 1,
+      "persist_first": null,
+      "assign": {},
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "taken@example.com",
+          "username": "takenname",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "json_data"
+        ]
+      }
+    },
+    {
+      "name": "existing: username unchanged still taken by nobody else",
+      "existing_id": 3,
+      "persist_first": null,
+      "assign": {
+        "name": "Member"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "member@example.com",
+          "username": "member",
+          "name": "Member",
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"payout_frequency\":\"weekly\"}",
+        "changed": [
+          "name"
+        ]
+      }
+    },
+    {
+      "name": "existing: rename to taken username",
+      "existing_id": 3,
+      "persist_first": null,
+      "assign": {
+        "username": "takenname"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "username",
+            "type": "taken",
+            "message": "has already been taken"
+          }
+        ],
+        "full_messages": [
+          "Username has already been taken"
+        ],
+        "attributes": {
+          "email": "member@example.com",
+          "username": "takenname",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"payout_frequency\":\"weekly\"}",
+        "changed": [
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "existing: reserved support email by a team member",
+      "existing_id": 3,
+      "persist_first": null,
+      "assign": {
+        "support_email": "help@gumroad.com"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "member@example.com",
+          "username": "member",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": "help@gumroad.com",
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"payout_frequency\":\"weekly\"}",
+        "changed": [
+          "support_email"
+        ]
+      }
+    },
+    {
+      "name": "existing: email changed to a taken one",
+      "existing_id": 3,
+      "persist_first": null,
+      "assign": {
+        "email": "taken@example.com"
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "base",
+            "type": null,
+            "message": "An account already exists with this email."
+          }
+        ],
+        "full_messages": [
+          "An account already exists with this email."
+        ],
+        "attributes": {
+          "email": "taken@example.com",
+          "username": "member",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{\"payout_frequency\":\"weekly\"}",
+        "changed": [
+          "email"
+        ]
+      }
+    },
+    {
+      "name": "existing: colon in unchanged name is allowed",
+      "existing_id": 1,
+      "persist_first": {
+        "name": "a:b"
+      },
+      "assign": {
+        "notification_endpoint": "x"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "taken@example.com",
+          "username": "takenname",
+          "name": "a:b",
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": "http://x"
+        },
+        "json_data": "{}",
+        "changed": [
+          "json_data",
+          "notification_endpoint"
+        ]
+      }
+    },
+    {
+      "name": "existing: blank email is nilified",
+      "existing_id": 1,
+      "persist_first": null,
+      "assign": {
+        "email": ""
+      },
+      "result": {
+        "errors": [
+          {
+            "attribute": "email",
+            "type": "blank",
+            "message": "can't be blank"
+          }
+        ],
+        "full_messages": [
+          "Email can't be blank"
+        ],
+        "attributes": {
+          "email": null,
+          "username": "takenname",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": null
+        },
+        "json_data": "{}",
+        "changed": [
+          "email",
+          "json_data"
+        ]
+      }
+    },
+    {
+      "name": "existing: notification endpoint without scheme",
+      "existing_id": 1,
+      "persist_first": null,
+      "assign": {
+        "notification_endpoint": "example.com/ping"
+      },
+      "result": {
+        "errors": [],
+        "full_messages": [],
+        "attributes": {
+          "email": "taken@example.com",
+          "username": "takenname",
+          "name": null,
+          "facebook_meta_tag": null,
+          "google_analytics_id": null,
+          "support_email": null,
+          "facebook_pixel_id": null,
+          "notification_endpoint": "http://example.com/ping"
+        },
+        "json_data": "{}",
+        "changed": [
+          "json_data",
+          "notification_endpoint"
+        ]
+      }
+    }
+  ],
+  "stripped_fields": [
+    {
+      "input": "  a  b  ",
+      "stripped": "a b",
+      "ruby_strip": "a  b"
+    },
+    {
+      "input": "​x‌‍­y﻿",
+      "stripped": "x‌‍y",
+      "ruby_strip": "​x‌‍­y﻿"
+    },
+    {
+      "input": " lead　trail ",
+      "stripped": "lead trail",
+      "ruby_strip": " lead　trail "
+    },
+    {
+      "input": "",
+      "stripped": null,
+      "ruby_strip": ""
+    },
+    {
+      "input": "   ",
+      "stripped": null,
+      "ruby_strip": ""
+    },
+    {
+      "input": "\t\nline\r\n",
+      "stripped": "line",
+      "ruby_strip": "line"
+    },
+    {
+      "input": "ab",
+      "stripped": "ab",
+      "ruby_strip": "ab"
+    },
+    {
+      "input": " x ",
+      "stripped": " x ",
+      "ruby_strip": " x "
+    },
+    {
+      "input": "\u0000 a \u0000",
+      "stripped": "a",
+      "ruby_strip": "a"
+    }
+  ],
+  "custom_fee_per_thousand": [
+    {
+      "value": 5,
+      "messages": []
+    },
+    {
+      "value": -1,
+      "messages": [
+        "must be greater than or equal to 0"
+      ]
+    },
+    {
+      "value": 0,
+      "messages": []
+    },
+    {
+      "value": 1000,
+      "messages": []
+    },
+    {
+      "value": 1001,
+      "messages": [
+        "must be less than or equal to 1000"
+      ]
+    },
+    {
+      "value": 5.0,
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": 12.5,
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "50",
+      "messages": []
+    },
+    {
+      "value": " 50",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "50 ",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "+7",
+      "messages": []
+    },
+    {
+      "value": "-0",
+      "messages": []
+    },
+    {
+      "value": "1_000",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "1e3",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": ".5",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "5.",
+      "messages": [
+        "must be an integer"
+      ]
+    },
+    {
+      "value": "abc",
+      "messages": [
+        "is not a number"
+      ]
+    },
+    {
+      "value": "0x1A",
+      "messages": [
+        "is not a number"
+      ]
+    },
+    {
+      "value": "",
+      "messages": []
+    },
+    {
+      "value": " ",
+      "messages": []
+    },
+    {
+      "value": true,
+      "messages": [
+        "is not a number"
+      ]
+    },
+    {
+      "value": false,
+      "messages": []
+    },
+    {
+      "value": [
+        1
+      ],
+      "messages": [
+        "is not a number"
+      ]
+    },
+    {
+      "value": {
+        "a": 1
+      },
+      "messages": [
+        "is not a number"
+      ]
+    },
+    {
+      "value": {},
+      "messages": []
+    },
+    {
+      "value": null,
+      "messages": []
+    }
+  ],
+  "emails": [
+    {
+      "email": "a@b.co",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "b.co",
+      "disposable": false,
+      "gmail_normalized": "a@b.co"
+    },
+    {
+      "email": "first.last@example.com",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": "first.last@example.com"
+    },
+    {
+      "email": ".lead@example.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": ".lead@example.com"
+    },
+    {
+      "email": "a..b@example.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": "a..b@example.com"
+    },
+    {
+      "email": "\"quoted local\"@example.com",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": "\"quoted local\"@example.com"
+    },
+    {
+      "email": "user@[10.0.0.1]",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "[10.0.0.1]",
+      "disposable": false,
+      "gmail_normalized": "user@[10.0.0.1]"
+    },
+    {
+      "email": "user@localhost",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "localhost",
+      "disposable": false,
+      "gmail_normalized": "user@localhost"
+    },
+    {
+      "email": "user@exa_mple.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "exa_mple.com",
+      "disposable": false,
+      "gmail_normalized": "user@exa_mple.com"
+    },
+    {
+      "email": "x@y.c",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "y.c",
+      "disposable": false,
+      "gmail_normalized": "x@y.c"
+    },
+    {
+      "email": "ab@c.de",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "c.de",
+      "disposable": false,
+      "gmail_normalized": "ab@c.de"
+    },
+    {
+      "email": "a b@example.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "a b@example.com"
+    },
+    {
+      "email": "us(er)@example.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": "us(er)@example.com"
+    },
+    {
+      "email": "user@example.com\n",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "user@example.com\n"
+    },
+    {
+      "email": "Ünïcode@example.com",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "example.com",
+      "disposable": false,
+      "gmail_normalized": "ünïcode@example.com"
+    },
+    {
+      "email": "user@sub.example.co.uk",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "sub.example.co.uk",
+      "disposable": false,
+      "gmail_normalized": "user@sub.example.co.uk"
+    },
+    {
+      "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@b.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "b.com",
+      "disposable": false,
+      "gmail_normalized": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@b.com"
+    },
+    {
+      "email": "a@b@c.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "a@b@c.com"
+    },
+    {
+      "email": "Name <user@gumroad.com>",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": true,
+      "mail_domain": "gumroad.com",
+      "disposable": false,
+      "gmail_normalized": "name <user@gumroad.com>"
+    },
+    {
+      "email": "user@GUMROAD.org",
+      "email_format": true,
+      "kindle": false,
+      "reserved_domain": true,
+      "mail_domain": "GUMROAD.org",
+      "disposable": false,
+      "gmail_normalized": "user@gumroad.org"
+    },
+    {
+      "email": "user@gumroad.dev.",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "user@gumroad.dev."
+    },
+    {
+      "email": "@gumroad.com",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "@gumroad.com"
+    },
+    {
+      "email": "user@",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": "ParseError",
+      "disposable": false,
+      "gmail_normalized": "user@"
+    },
+    {
+      "email": "plain",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": null,
+      "mail_domain": null,
+      "disposable": false,
+      "gmail_normalized": "plain"
+    },
+    {
+      "email": "",
+      "email_format": false,
+      "kindle": false,
+      "reserved_domain": false,
+      "mail_domain": null,
+      "disposable": false,
+      "gmail_normalized": null
+    },
+    {
+      "email": "reader@kindle.com",
+      "email_format": true,
+      "kindle": true,
+      "reserved_domain": false,
+      "mail_domain": "kindle.com",
+      "disposable": false,
+      "gmail_normalized": "reader@kindle.com"
+    },
+    {
+      "email": "Reader@Kindle.COM",
+      "email_format": true,
+      "kindle": true,
+      "reserved_domain": false,
+      "mail_domain": "Kindle.COM",
+      "disposable": false,
+      "gmail_normalized": "reader@kindle.com"
+    },
+    {
+      "email": "re.ader@kindle.com",
+      "email_format": true,
+      "kindle": true,
+      "reserved_domain": false,
+      "mail_domain": "kindle.com",
+      "disposable": false,
+      "gmail_normalized": "re.ader@kindle.com"
+    }
+  ],
+  "usernames": [
+    {
+      "username": "apple",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "apple",
+      "email": "ceo@apple.com",
+      "blocked": false
+    },
+    {
+      "username": "apple",
+      "email": "ceo@corp.apple.com",
+      "blocked": false
+    },
+    {
+      "username": "theapplestore",
+      "email": "x@example.com",
+      "blocked": false
+    },
+    {
+      "username": "appleofficial",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "apple123",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "apple12345",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "pineapple",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "virginmedia",
+      "email": "x@virginmedia.com",
+      "blocked": true
+    },
+    {
+      "username": "bt1",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "bt",
+      "email": "a@bt.com",
+      "blocked": false
+    },
+    {
+      "username": "go88",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "go88abc",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "go88abcdefg",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "casino7",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "casinoking",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "poker99",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "pokercoach",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "88bet",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "nohu",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "nohu12",
+      "email": null,
+      "blocked": true
+    },
+    {
+      "username": "gumroadsupport",
+      "email": "a@gumroad.com",
+      "blocked": false
+    },
+    {
+      "username": "",
+      "email": null,
+      "blocked": false
+    },
+    {
+      "username": "UpperApple",
+      "email": null,
+      "blocked": false
+    }
+  ]
+}

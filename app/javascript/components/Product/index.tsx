@@ -346,7 +346,7 @@ export const Product = ({
   selection: PriceSelection;
   setSelection?: React.Dispatch<React.SetStateAction<PriceSelection>>;
   ctaButtonRef?: React.MutableRefObject<HTMLAnchorElement | null>;
-  configurationSelectorRef?: React.MutableRefObject<ConfigurationSelectorHandle | null>;
+  configurationSelectorRef?: React.RefObject<ConfigurationSelectorHandle | null>;
   wishlists?: WishlistForProduct[];
   disableAnalytics?: boolean;
   // The storefront-wrapped product page renders the profile header directly above, which

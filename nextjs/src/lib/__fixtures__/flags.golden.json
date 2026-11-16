@@ -1,0 +1,2098 @@
+{
+  "Affiliate": {
+    "file": "app/models/affiliate.rb",
+    "table": "affiliates",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "apply_to_all_products": {
+        "bit": "1",
+        "condition": "(`affiliates`.`flags` & 1 = 1)",
+        "not_condition": "(`affiliates`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`affiliates`.`flags` = `affiliates`.`flags` | 1",
+        "unset_sql": "`affiliates`.`flags` = `affiliates`.`flags` & ~1"
+      },
+      "send_posts": {
+        "bit": "2",
+        "condition": "(`affiliates`.`flags` & 2 = 2)",
+        "not_condition": "(`affiliates`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`affiliates`.`flags` = `affiliates`.`flags` | 2",
+        "unset_sql": "`affiliates`.`flags` = `affiliates`.`flags` & ~2"
+      },
+      "dont_show_as_co_creator": {
+        "bit": "4",
+        "condition": "(`affiliates`.`flags` & 4 = 4)",
+        "not_condition": "(`affiliates`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`affiliates`.`flags` = `affiliates`.`flags` | 4",
+        "unset_sql": "`affiliates`.`flags` = `affiliates`.`flags` & ~4"
+      },
+      "removed_at_request": {
+        "bit": "8",
+        "condition": "(`affiliates`.`flags` & 8 = 8)",
+        "not_condition": "(`affiliates`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`affiliates`.`flags` = `affiliates`.`flags` | 8",
+        "unset_sql": "`affiliates`.`flags` = `affiliates`.`flags` & ~8"
+      }
+    }
+  },
+  "BacktaxAgreement": {
+    "file": "app/models/backtax_agreement.rb",
+    "table": "backtax_agreements",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "collected": {
+        "bit": "1",
+        "condition": "(`backtax_agreements`.`flags` & 1 = 1)",
+        "not_condition": "(`backtax_agreements`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`backtax_agreements`.`flags` = `backtax_agreements`.`flags` | 1",
+        "unset_sql": "`backtax_agreements`.`flags` = `backtax_agreements`.`flags` & ~1"
+      }
+    }
+  },
+  "BasePrice": {
+    "file": "app/models/base_price.rb",
+    "table": "prices",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_rental": {
+        "bit": "1",
+        "condition": "(`prices`.`flags` & 1 = 1)",
+        "not_condition": "(`prices`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`prices`.`flags` = `prices`.`flags` | 1",
+        "unset_sql": "`prices`.`flags` = `prices`.`flags` & ~1"
+      }
+    }
+  },
+  "BaseVariant": {
+    "file": "app/models/base_variant.rb",
+    "table": "base_variants",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_default_sku": {
+        "bit": "1",
+        "condition": "(`base_variants`.`flags` & 1 = 1)",
+        "not_condition": "(`base_variants`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`base_variants`.`flags` = `base_variants`.`flags` | 1",
+        "unset_sql": "`base_variants`.`flags` = `base_variants`.`flags` & ~1"
+      },
+      "apply_price_changes_to_existing_memberships": {
+        "bit": "2",
+        "condition": "(`base_variants`.`flags` & 2 = 2)",
+        "not_condition": "(`base_variants`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`base_variants`.`flags` = `base_variants`.`flags` | 2",
+        "unset_sql": "`base_variants`.`flags` = `base_variants`.`flags` & ~2"
+      },
+      "closed_to_new_purchases": {
+        "bit": "4",
+        "condition": "(`base_variants`.`flags` & 4 = 4)",
+        "not_condition": "(`base_variants`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`base_variants`.`flags` = `base_variants`.`flags` | 4",
+        "unset_sql": "`base_variants`.`flags` = `base_variants`.`flags` & ~4"
+      }
+    }
+  },
+  "Charge": {
+    "file": "app/models/charge.rb",
+    "table": "charges",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "receipt_sent": {
+        "bit": "1",
+        "condition": "(`charges`.`flags` & 1 = 1)",
+        "not_condition": "(`charges`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`charges`.`flags` = `charges`.`flags` | 1",
+        "unset_sql": "`charges`.`flags` = `charges`.`flags` & ~1"
+      },
+      "client_confirmed": {
+        "bit": "2",
+        "condition": "(`charges`.`flags` & 2 = 2)",
+        "not_condition": "(`charges`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`charges`.`flags` = `charges`.`flags` | 2",
+        "unset_sql": "`charges`.`flags` = `charges`.`flags` & ~2"
+      }
+    }
+  },
+  "CustomField": {
+    "file": "app/models/custom_field.rb",
+    "table": "custom_fields",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_post_purchase": {
+        "bit": "1",
+        "condition": "(`custom_fields`.`flags` & 1 = 1)",
+        "not_condition": "(`custom_fields`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`custom_fields`.`flags` = `custom_fields`.`flags` | 1",
+        "unset_sql": "`custom_fields`.`flags` = `custom_fields`.`flags` & ~1"
+      },
+      "collect_per_product": {
+        "bit": "2",
+        "condition": "(`custom_fields`.`flags` & 2 = 2)",
+        "not_condition": "(`custom_fields`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`custom_fields`.`flags` = `custom_fields`.`flags` | 2",
+        "unset_sql": "`custom_fields`.`flags` = `custom_fields`.`flags` & ~2"
+      }
+    }
+  },
+  "Event": {
+    "file": "app/models/event.rb",
+    "table": "events",
+    "column": "visit_id",
+    "query_mode": "bit_operator",
+    "flags": {
+      "from_profile": {
+        "bit": "1",
+        "condition": "(`events`.`visit_id` & 1 = 1)",
+        "not_condition": "(`events`.`visit_id` & 1 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 1 = 1)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 1",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~1"
+      },
+      "was_product_recommended": {
+        "bit": "2",
+        "condition": "(`events`.`visit_id` & 2 = 2)",
+        "not_condition": "(`events`.`visit_id` & 2 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 2 = 2)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 2",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~2"
+      },
+      "is_recurring_subscription_charge": {
+        "bit": "4",
+        "condition": "(`events`.`visit_id` & 4 = 4)",
+        "not_condition": "(`events`.`visit_id` & 4 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 4 = 4)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 4",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~4"
+      },
+      "manufactured": {
+        "bit": "8",
+        "condition": "(`events`.`visit_id` & 8 = 8)",
+        "not_condition": "(`events`.`visit_id` & 8 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 8 = 8)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 8",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~8"
+      },
+      "on_custom_domain": {
+        "bit": "16",
+        "condition": "(`events`.`visit_id` & 16 = 16)",
+        "not_condition": "(`events`.`visit_id` & 16 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 16 = 16)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 16",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~16"
+      },
+      "from_multi_overlay": {
+        "bit": "32",
+        "condition": "(`events`.`visit_id` & 32 = 32)",
+        "not_condition": "(`events`.`visit_id` & 32 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 32 = 32)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 32",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~32"
+      },
+      "from_seo": {
+        "bit": "64",
+        "condition": "(`events`.`visit_id` & 64 = 64)",
+        "not_condition": "(`events`.`visit_id` & 64 = 0)",
+        "aliased_condition": "(`t2`.`visit_id` & 64 = 64)",
+        "set_sql": "`events`.`visit_id` = `events`.`visit_id` | 64",
+        "unset_sql": "`events`.`visit_id` = `events`.`visit_id` & ~64"
+      }
+    }
+  },
+  "Gift": {
+    "file": "app/models/gift.rb",
+    "table": "gifts",
+    "column": "flags",
+    "query_mode": "in_list",
+    "flags": {
+      "is_recipient_hidden": {
+        "bit": "1",
+        "condition": "(`gifts`.`flags` in (1,3))",
+        "not_condition": "(`gifts`.`flags` not in (1,3))",
+        "aliased_condition": "(`t2`.`flags` in (1,3))",
+        "set_sql": "`gifts`.`flags` = `gifts`.`flags` | 1",
+        "unset_sql": "`gifts`.`flags` = `gifts`.`flags` & ~1"
+      },
+      "is_gifter_hidden": {
+        "bit": "2",
+        "condition": "(`gifts`.`flags` in (2,3))",
+        "not_condition": "(`gifts`.`flags` not in (2,3))",
+        "aliased_condition": "(`t2`.`flags` in (2,3))",
+        "set_sql": "`gifts`.`flags` = `gifts`.`flags` | 2",
+        "unset_sql": "`gifts`.`flags` = `gifts`.`flags` & ~2"
+      }
+    }
+  },
+  "Installment": {
+    "file": "app/models/installment.rb",
+    "table": "installments",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_unpublished_by_admin": {
+        "bit": "1",
+        "condition": "(`installments`.`flags` & 1 = 1)",
+        "not_condition": "(`installments`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 1",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~1"
+      },
+      "DEPRECATED_is_automated_installment": {
+        "bit": "2",
+        "condition": "(`installments`.`flags` & 2 = 2)",
+        "not_condition": "(`installments`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 2",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~2"
+      },
+      "DEPRECATED_stream_only": {
+        "bit": "4",
+        "condition": "(`installments`.`flags` & 4 = 4)",
+        "not_condition": "(`installments`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 4",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~4"
+      },
+      "DEPRECATED_is_open_rate_tracking_enabled": {
+        "bit": "8",
+        "condition": "(`installments`.`flags` & 8 = 8)",
+        "not_condition": "(`installments`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 8",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~8"
+      },
+      "DEPRECATED_is_click_rate_tracking_enabled": {
+        "bit": "16",
+        "condition": "(`installments`.`flags` & 16 = 16)",
+        "not_condition": "(`installments`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 16",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~16"
+      },
+      "is_for_new_customers_of_workflow": {
+        "bit": "32",
+        "condition": "(`installments`.`flags` & 32 = 32)",
+        "not_condition": "(`installments`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 32",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~32"
+      },
+      "workflow_installment_published_once_already": {
+        "bit": "64",
+        "condition": "(`installments`.`flags` & 64 = 64)",
+        "not_condition": "(`installments`.`flags` & 64 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 64 = 64)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 64",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~64"
+      },
+      "shown_on_profile": {
+        "bit": "128",
+        "condition": "(`installments`.`flags` & 128 = 128)",
+        "not_condition": "(`installments`.`flags` & 128 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 128 = 128)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 128",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~128"
+      },
+      "send_emails": {
+        "bit": "256",
+        "condition": "(`installments`.`flags` & 256 = 256)",
+        "not_condition": "(`installments`.`flags` & 256 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 256 = 256)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 256",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~256"
+      },
+      "ready_to_publish": {
+        "bit": "512",
+        "condition": "(`installments`.`flags` & 512 = 512)",
+        "not_condition": "(`installments`.`flags` & 512 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 512 = 512)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 512",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~512"
+      },
+      "allow_comments": {
+        "bit": "1024",
+        "condition": "(`installments`.`flags` & 1024 = 1024)",
+        "not_condition": "(`installments`.`flags` & 1024 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1024 = 1024)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 1024",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~1024"
+      },
+      "single_recipient_email": {
+        "bit": "2048",
+        "condition": "(`installments`.`flags` & 2048 = 2048)",
+        "not_condition": "(`installments`.`flags` & 2048 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2048 = 2048)",
+        "set_sql": "`installments`.`flags` = `installments`.`flags` | 2048",
+        "unset_sql": "`installments`.`flags` = `installments`.`flags` & ~2048"
+      }
+    }
+  },
+  "Integration": {
+    "file": "app/models/integration.rb",
+    "table": "integrations",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "keep_inactive_members": {
+        "bit": "1",
+        "condition": "(`integrations`.`flags` & 1 = 1)",
+        "not_condition": "(`integrations`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`integrations`.`flags` = `integrations`.`flags` | 1",
+        "unset_sql": "`integrations`.`flags` = `integrations`.`flags` & ~1"
+      }
+    }
+  },
+  "License": {
+    "file": "app/models/license.rb",
+    "table": "licenses",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "DEPRECATED_is_pregenerated": {
+        "bit": "1",
+        "condition": "(`licenses`.`flags` & 1 = 1)",
+        "not_condition": "(`licenses`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`licenses`.`flags` = `licenses`.`flags` | 1",
+        "unset_sql": "`licenses`.`flags` = `licenses`.`flags` & ~1"
+      }
+    }
+  },
+  "Link": {
+    "file": "app/models/link.rb",
+    "table": "links",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "product_refund_policy_enabled": {
+        "bit": "1",
+        "condition": "(`links`.`flags` & 1 = 1)",
+        "not_condition": "(`links`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 1",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~1"
+      },
+      "is_recurring_billing": {
+        "bit": "2",
+        "condition": "(`links`.`flags` & 2 = 2)",
+        "not_condition": "(`links`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 2",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~2"
+      },
+      "free_trial_enabled": {
+        "bit": "4",
+        "condition": "(`links`.`flags` & 4 = 4)",
+        "not_condition": "(`links`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 4",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~4"
+      },
+      "is_in_preorder_state": {
+        "bit": "8",
+        "condition": "(`links`.`flags` & 8 = 8)",
+        "not_condition": "(`links`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 8",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~8"
+      },
+      "archived": {
+        "bit": "16",
+        "condition": "(`links`.`flags` & 16 = 16)",
+        "not_condition": "(`links`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 16",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~16"
+      },
+      "is_duplicating": {
+        "bit": "32",
+        "condition": "(`links`.`flags` & 32 = 32)",
+        "not_condition": "(`links`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 32",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~32"
+      },
+      "is_licensed": {
+        "bit": "64",
+        "condition": "(`links`.`flags` & 64 = 64)",
+        "not_condition": "(`links`.`flags` & 64 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 64 = 64)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 64",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~64"
+      },
+      "is_physical": {
+        "bit": "128",
+        "condition": "(`links`.`flags` & 128 = 128)",
+        "not_condition": "(`links`.`flags` & 128 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 128 = 128)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 128",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~128"
+      },
+      "skus_enabled": {
+        "bit": "256",
+        "condition": "(`links`.`flags` & 256 = 256)",
+        "not_condition": "(`links`.`flags` & 256 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 256 = 256)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 256",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~256"
+      },
+      "block_access_after_membership_cancellation": {
+        "bit": "512",
+        "condition": "(`links`.`flags` & 512 = 512)",
+        "not_condition": "(`links`.`flags` & 512 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 512 = 512)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 512",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~512"
+      },
+      "is_price_tax_exclusive_DEPRECATED": {
+        "bit": "1024",
+        "condition": "(`links`.`flags` & 1024 = 1024)",
+        "not_condition": "(`links`.`flags` & 1024 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1024 = 1024)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 1024",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~1024"
+      },
+      "should_include_last_post": {
+        "bit": "2048",
+        "condition": "(`links`.`flags` & 2048 = 2048)",
+        "not_condition": "(`links`.`flags` & 2048 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2048 = 2048)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 2048",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~2048"
+      },
+      "from_bundle_marketing": {
+        "bit": "4096",
+        "condition": "(`links`.`flags` & 4096 = 4096)",
+        "not_condition": "(`links`.`flags` & 4096 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4096 = 4096)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 4096",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~4096"
+      },
+      "quantity_enabled": {
+        "bit": "8192",
+        "condition": "(`links`.`flags` & 8192 = 8192)",
+        "not_condition": "(`links`.`flags` & 8192 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8192 = 8192)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 8192",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~8192"
+      },
+      "has_outdated_purchases": {
+        "bit": "16384",
+        "condition": "(`links`.`flags` & 16384 = 16384)",
+        "not_condition": "(`links`.`flags` & 16384 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16384 = 16384)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 16384",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~16384"
+      },
+      "is_adult": {
+        "bit": "32768",
+        "condition": "(`links`.`flags` & 32768 = 32768)",
+        "not_condition": "(`links`.`flags` & 32768 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32768 = 32768)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 32768",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~32768"
+      },
+      "display_product_reviews": {
+        "bit": "65536",
+        "condition": "(`links`.`flags` & 65536 = 65536)",
+        "not_condition": "(`links`.`flags` & 65536 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 65536 = 65536)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 65536",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~65536"
+      },
+      "allow_double_charges": {
+        "bit": "131072",
+        "condition": "(`links`.`flags` & 131072 = 131072)",
+        "not_condition": "(`links`.`flags` & 131072 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 131072 = 131072)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 131072",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~131072"
+      },
+      "is_tiered_membership": {
+        "bit": "262144",
+        "condition": "(`links`.`flags` & 262144 = 262144)",
+        "not_condition": "(`links`.`flags` & 262144 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 262144 = 262144)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 262144",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~262144"
+      },
+      "should_show_all_posts": {
+        "bit": "524288",
+        "condition": "(`links`.`flags` & 524288 = 524288)",
+        "not_condition": "(`links`.`flags` & 524288 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 524288 = 524288)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 524288",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~524288"
+      },
+      "is_multiseat_license": {
+        "bit": "1048576",
+        "condition": "(`links`.`flags` & 1048576 = 1048576)",
+        "not_condition": "(`links`.`flags` & 1048576 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1048576 = 1048576)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 1048576",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~1048576"
+      },
+      "should_show_sales_count": {
+        "bit": "2097152",
+        "condition": "(`links`.`flags` & 2097152 = 2097152)",
+        "not_condition": "(`links`.`flags` & 2097152 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2097152 = 2097152)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 2097152",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~2097152"
+      },
+      "is_epublication": {
+        "bit": "4194304",
+        "condition": "(`links`.`flags` & 4194304 = 4194304)",
+        "not_condition": "(`links`.`flags` & 4194304 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4194304 = 4194304)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 4194304",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~4194304"
+      },
+      "transcode_videos_on_purchase": {
+        "bit": "8388608",
+        "condition": "(`links`.`flags` & 8388608 = 8388608)",
+        "not_condition": "(`links`.`flags` & 8388608 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8388608 = 8388608)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 8388608",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~8388608"
+      },
+      "has_same_rich_content_for_all_variants": {
+        "bit": "16777216",
+        "condition": "(`links`.`flags` & 16777216 = 16777216)",
+        "not_condition": "(`links`.`flags` & 16777216 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16777216 = 16777216)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 16777216",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~16777216"
+      },
+      "is_bundle": {
+        "bit": "33554432",
+        "condition": "(`links`.`flags` & 33554432 = 33554432)",
+        "not_condition": "(`links`.`flags` & 33554432 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 33554432 = 33554432)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 33554432",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~33554432"
+      },
+      "purchasing_power_parity_disabled": {
+        "bit": "67108864",
+        "condition": "(`links`.`flags` & 67108864 = 67108864)",
+        "not_condition": "(`links`.`flags` & 67108864 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 67108864 = 67108864)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 67108864",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~67108864"
+      },
+      "is_collab": {
+        "bit": "134217728",
+        "condition": "(`links`.`flags` & 134217728 = 134217728)",
+        "not_condition": "(`links`.`flags` & 134217728 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 134217728 = 134217728)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 134217728",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~134217728"
+      },
+      "is_unpublished_by_admin": {
+        "bit": "268435456",
+        "condition": "(`links`.`flags` & 268435456 = 268435456)",
+        "not_condition": "(`links`.`flags` & 268435456 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 268435456 = 268435456)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 268435456",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~268435456"
+      },
+      "community_chat_enabled": {
+        "bit": "536870912",
+        "condition": "(`links`.`flags` & 536870912 = 536870912)",
+        "not_condition": "(`links`.`flags` & 536870912 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 536870912 = 536870912)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 536870912",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~536870912"
+      },
+      "created_via_cli": {
+        "bit": "1073741824",
+        "condition": "(`links`.`flags` & 1073741824 = 1073741824)",
+        "not_condition": "(`links`.`flags` & 1073741824 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1073741824 = 1073741824)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 1073741824",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~1073741824"
+      },
+      "DEPRECATED_moderated_by_iffy": {
+        "bit": "2147483648",
+        "condition": "(`links`.`flags` & 2147483648 = 2147483648)",
+        "not_condition": "(`links`.`flags` & 2147483648 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2147483648 = 2147483648)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 2147483648",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~2147483648"
+      },
+      "hide_sold_out_variants": {
+        "bit": "4294967296",
+        "condition": "(`links`.`flags` & 4294967296 = 4294967296)",
+        "not_condition": "(`links`.`flags` & 4294967296 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4294967296 = 4294967296)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 4294967296",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~4294967296"
+      },
+      "hide_bundle_product_reviews": {
+        "bit": "8589934592",
+        "condition": "(`links`.`flags` & 8589934592 = 8589934592)",
+        "not_condition": "(`links`.`flags` & 8589934592 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8589934592 = 8589934592)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 8589934592",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~8589934592"
+      },
+      "waitlist_enabled": {
+        "bit": "17179869184",
+        "condition": "(`links`.`flags` & 17179869184 = 17179869184)",
+        "not_condition": "(`links`.`flags` & 17179869184 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 17179869184 = 17179869184)",
+        "set_sql": "`links`.`flags` = `links`.`flags` | 17179869184",
+        "unset_sql": "`links`.`flags` = `links`.`flags` & ~17179869184"
+      }
+    }
+  },
+  "OfferCode": {
+    "file": "app/models/offer_code.rb",
+    "table": "offer_codes",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_cancellation_discount": {
+        "bit": "1",
+        "condition": "(`offer_codes`.`flags` & 1 = 1)",
+        "not_condition": "(`offer_codes`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` | 1",
+        "unset_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` & ~1"
+      },
+      "created_via_cli": {
+        "bit": "2",
+        "condition": "(`offer_codes`.`flags` & 2 = 2)",
+        "not_condition": "(`offer_codes`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` | 2",
+        "unset_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` & ~2"
+      },
+      "once_per_cart": {
+        "bit": "4",
+        "condition": "(`offer_codes`.`flags` & 4 = 4)",
+        "not_condition": "(`offer_codes`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` | 4",
+        "unset_sql": "`offer_codes`.`flags` = `offer_codes`.`flags` & ~4"
+      }
+    }
+  },
+  "Order": {
+    "file": "app/models/order.rb",
+    "table": "orders",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "DEPRECATED_seller_receipt_enabled": {
+        "bit": "1",
+        "condition": "(`orders`.`flags` & 1 = 1)",
+        "not_condition": "(`orders`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`orders`.`flags` = `orders`.`flags` | 1",
+        "unset_sql": "`orders`.`flags` = `orders`.`flags` & ~1"
+      },
+      "partially_successful": {
+        "bit": "2",
+        "condition": "(`orders`.`flags` & 2 = 2)",
+        "not_condition": "(`orders`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`orders`.`flags` = `orders`.`flags` | 2",
+        "unset_sql": "`orders`.`flags` = `orders`.`flags` & ~2"
+      }
+    }
+  },
+  "Payment": {
+    "file": "app/models/payment.rb",
+    "table": "payments",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "was_created_in_split_mode": {
+        "bit": "1",
+        "condition": "(`payments`.`flags` & 1 = 1)",
+        "not_condition": "(`payments`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`payments`.`flags` = `payments`.`flags` | 1",
+        "unset_sql": "`payments`.`flags` = `payments`.`flags` & ~1"
+      }
+    }
+  },
+  "ProductAffiliate": {
+    "file": "app/models/product_affiliate.rb",
+    "table": "affiliates_links",
+    "column": "flags",
+    "query_mode": "in_list",
+    "flags": {
+      "dont_show_as_co_creator": {
+        "bit": "1",
+        "condition": "(`affiliates_links`.`flags` in (1))",
+        "not_condition": "(`affiliates_links`.`flags` not in (1))",
+        "aliased_condition": "(`t2`.`flags` in (1))",
+        "set_sql": "`affiliates_links`.`flags` = `affiliates_links`.`flags` | 1",
+        "unset_sql": "`affiliates_links`.`flags` = `affiliates_links`.`flags` & ~1"
+      }
+    }
+  },
+  "ProductFile": {
+    "file": "app/models/product_file.rb",
+    "table": "product_files",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_transcoded_for_hls": {
+        "bit": "1",
+        "condition": "(`product_files`.`flags` & 1 = 1)",
+        "not_condition": "(`product_files`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 1",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~1"
+      },
+      "is_linked_to_existing_file": {
+        "bit": "2",
+        "condition": "(`product_files`.`flags` & 2 = 2)",
+        "not_condition": "(`product_files`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 2",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~2"
+      },
+      "analyze_completed": {
+        "bit": "4",
+        "condition": "(`product_files`.`flags` & 4 = 4)",
+        "not_condition": "(`product_files`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 4",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~4"
+      },
+      "stream_only": {
+        "bit": "8",
+        "condition": "(`product_files`.`flags` & 8 = 8)",
+        "not_condition": "(`product_files`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 8",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~8"
+      },
+      "pdf_stamp_enabled": {
+        "bit": "16",
+        "condition": "(`product_files`.`flags` & 16 = 16)",
+        "not_condition": "(`product_files`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 16",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~16"
+      },
+      "hide_kindle_and_read_buttons": {
+        "bit": "32",
+        "condition": "(`product_files`.`flags` & 32 = 32)",
+        "not_condition": "(`product_files`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`product_files`.`flags` = `product_files`.`flags` | 32",
+        "unset_sql": "`product_files`.`flags` = `product_files`.`flags` & ~32"
+      }
+    }
+  },
+  "Purchase": {
+    "file": "app/models/purchase.rb",
+    "table": "purchases",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_additional_contribution": {
+        "bit": "1",
+        "condition": "(`purchases`.`flags` & 1 = 1)",
+        "not_condition": "(`purchases`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 1",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~1"
+      },
+      "is_refund_chargeback_fee_waived": {
+        "bit": "2",
+        "condition": "(`purchases`.`flags` & 2 = 2)",
+        "not_condition": "(`purchases`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 2",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~2"
+      },
+      "is_original_subscription_purchase": {
+        "bit": "4",
+        "condition": "(`purchases`.`flags` & 4 = 4)",
+        "not_condition": "(`purchases`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 4",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~4"
+      },
+      "is_preorder_authorization": {
+        "bit": "8",
+        "condition": "(`purchases`.`flags` & 8 = 8)",
+        "not_condition": "(`purchases`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 8",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~8"
+      },
+      "is_multi_buy": {
+        "bit": "16",
+        "condition": "(`purchases`.`flags` & 16 = 16)",
+        "not_condition": "(`purchases`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 16",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~16"
+      },
+      "is_gift_receiver_purchase": {
+        "bit": "32",
+        "condition": "(`purchases`.`flags` & 32 = 32)",
+        "not_condition": "(`purchases`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 32",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~32"
+      },
+      "is_gift_sender_purchase": {
+        "bit": "64",
+        "condition": "(`purchases`.`flags` & 64 = 64)",
+        "not_condition": "(`purchases`.`flags` & 64 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 64 = 64)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 64",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~64"
+      },
+      "DEPRECATED_credit_card_zipcode_required": {
+        "bit": "128",
+        "condition": "(`purchases`.`flags` & 128 = 128)",
+        "not_condition": "(`purchases`.`flags` & 128 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 128 = 128)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 128",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~128"
+      },
+      "was_product_recommended": {
+        "bit": "256",
+        "condition": "(`purchases`.`flags` & 256 = 256)",
+        "not_condition": "(`purchases`.`flags` & 256 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 256 = 256)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 256",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~256"
+      },
+      "chargeback_reversed": {
+        "bit": "512",
+        "condition": "(`purchases`.`flags` & 512 = 512)",
+        "not_condition": "(`purchases`.`flags` & 512 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 512 = 512)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 512",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~512"
+      },
+      "was_zipcode_check_performed": {
+        "bit": "1024",
+        "condition": "(`purchases`.`flags` & 1024 = 1024)",
+        "not_condition": "(`purchases`.`flags` & 1024 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1024 = 1024)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 1024",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~1024"
+      },
+      "is_upgrade_purchase": {
+        "bit": "2048",
+        "condition": "(`purchases`.`flags` & 2048 = 2048)",
+        "not_condition": "(`purchases`.`flags` & 2048 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2048 = 2048)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 2048",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~2048"
+      },
+      "was_purchase_taxable": {
+        "bit": "4096",
+        "condition": "(`purchases`.`flags` & 4096 = 4096)",
+        "not_condition": "(`purchases`.`flags` & 4096 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4096 = 4096)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 4096",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~4096"
+      },
+      "was_tax_excluded_from_price": {
+        "bit": "8192",
+        "condition": "(`purchases`.`flags` & 8192 = 8192)",
+        "not_condition": "(`purchases`.`flags` & 8192 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8192 = 8192)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 8192",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~8192"
+      },
+      "is_rental": {
+        "bit": "16384",
+        "condition": "(`purchases`.`flags` & 16384 = 16384)",
+        "not_condition": "(`purchases`.`flags` & 16384 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16384 = 16384)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 16384",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~16384"
+      },
+      "was_discover_fee_charged": {
+        "bit": "32768",
+        "condition": "(`purchases`.`flags` & 32768 = 32768)",
+        "not_condition": "(`purchases`.`flags` & 32768 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32768 = 32768)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 32768",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~32768"
+      },
+      "is_archived": {
+        "bit": "65536",
+        "condition": "(`purchases`.`flags` & 65536 = 65536)",
+        "not_condition": "(`purchases`.`flags` & 65536 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 65536 = 65536)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 65536",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~65536"
+      },
+      "is_archived_original_subscription_purchase": {
+        "bit": "131072",
+        "condition": "(`purchases`.`flags` & 131072 = 131072)",
+        "not_condition": "(`purchases`.`flags` & 131072 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 131072 = 131072)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 131072",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~131072"
+      },
+      "is_free_trial_purchase": {
+        "bit": "262144",
+        "condition": "(`purchases`.`flags` & 262144 = 262144)",
+        "not_condition": "(`purchases`.`flags` & 262144 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 262144 = 262144)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 262144",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~262144"
+      },
+      "is_deleted_by_buyer": {
+        "bit": "524288",
+        "condition": "(`purchases`.`flags` & 524288 = 524288)",
+        "not_condition": "(`purchases`.`flags` & 524288 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 524288 = 524288)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 524288",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~524288"
+      },
+      "is_buyer_blocked_by_admin": {
+        "bit": "1048576",
+        "condition": "(`purchases`.`flags` & 1048576 = 1048576)",
+        "not_condition": "(`purchases`.`flags` & 1048576 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1048576 = 1048576)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 1048576",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~1048576"
+      },
+      "is_multiseat_license": {
+        "bit": "2097152",
+        "condition": "(`purchases`.`flags` & 2097152 = 2097152)",
+        "not_condition": "(`purchases`.`flags` & 2097152 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2097152 = 2097152)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 2097152",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~2097152"
+      },
+      "should_exclude_product_review": {
+        "bit": "4194304",
+        "condition": "(`purchases`.`flags` & 4194304 = 4194304)",
+        "not_condition": "(`purchases`.`flags` & 4194304 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4194304 = 4194304)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 4194304",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~4194304"
+      },
+      "is_purchasing_power_parity_discounted": {
+        "bit": "8388608",
+        "condition": "(`purchases`.`flags` & 8388608 = 8388608)",
+        "not_condition": "(`purchases`.`flags` & 8388608 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8388608 = 8388608)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 8388608",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~8388608"
+      },
+      "is_access_revoked": {
+        "bit": "16777216",
+        "condition": "(`purchases`.`flags` & 16777216 = 16777216)",
+        "not_condition": "(`purchases`.`flags` & 16777216 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16777216 = 16777216)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 16777216",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~16777216"
+      },
+      "is_bundle_purchase": {
+        "bit": "33554432",
+        "condition": "(`purchases`.`flags` & 33554432 = 33554432)",
+        "not_condition": "(`purchases`.`flags` & 33554432 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 33554432 = 33554432)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 33554432",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~33554432"
+      },
+      "is_bundle_product_purchase": {
+        "bit": "67108864",
+        "condition": "(`purchases`.`flags` & 67108864 = 67108864)",
+        "not_condition": "(`purchases`.`flags` & 67108864 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 67108864 = 67108864)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 67108864",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~67108864"
+      },
+      "is_part_of_combined_charge": {
+        "bit": "134217728",
+        "condition": "(`purchases`.`flags` & 134217728 = 134217728)",
+        "not_condition": "(`purchases`.`flags` & 134217728 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 134217728 = 134217728)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 134217728",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~134217728"
+      },
+      "is_commission_deposit_purchase": {
+        "bit": "268435456",
+        "condition": "(`purchases`.`flags` & 268435456 = 268435456)",
+        "not_condition": "(`purchases`.`flags` & 268435456 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 268435456 = 268435456)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 268435456",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~268435456"
+      },
+      "is_commission_completion_purchase": {
+        "bit": "536870912",
+        "condition": "(`purchases`.`flags` & 536870912 = 536870912)",
+        "not_condition": "(`purchases`.`flags` & 536870912 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 536870912 = 536870912)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 536870912",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~536870912"
+      },
+      "is_installment_payment": {
+        "bit": "1073741824",
+        "condition": "(`purchases`.`flags` & 1073741824 = 1073741824)",
+        "not_condition": "(`purchases`.`flags` & 1073741824 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1073741824 = 1073741824)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 1073741824",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~1073741824"
+      },
+      "is_reassignment_locked": {
+        "bit": "2147483648",
+        "condition": "(`purchases`.`flags` & 2147483648 = 2147483648)",
+        "not_condition": "(`purchases`.`flags` & 2147483648 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2147483648 = 2147483648)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 2147483648",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~2147483648"
+      },
+      "is_indian_card_mandate_registration": {
+        "bit": "4294967296",
+        "condition": "(`purchases`.`flags` & 4294967296 = 4294967296)",
+        "not_condition": "(`purchases`.`flags` & 4294967296 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4294967296 = 4294967296)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 4294967296",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~4294967296"
+      },
+      "indian_card_mandate_missing": {
+        "bit": "8589934592",
+        "condition": "(`purchases`.`flags` & 8589934592 = 8589934592)",
+        "not_condition": "(`purchases`.`flags` & 8589934592 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8589934592 = 8589934592)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 8589934592",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~8589934592"
+      },
+      "indian_card_mandate_inactive": {
+        "bit": "17179869184",
+        "condition": "(`purchases`.`flags` & 17179869184 = 17179869184)",
+        "not_condition": "(`purchases`.`flags` & 17179869184 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 17179869184 = 17179869184)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 17179869184",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~17179869184"
+      },
+      "indian_card_mandate_pending": {
+        "bit": "34359738368",
+        "condition": "(`purchases`.`flags` & 34359738368 = 34359738368)",
+        "not_condition": "(`purchases`.`flags` & 34359738368 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 34359738368 = 34359738368)",
+        "set_sql": "`purchases`.`flags` = `purchases`.`flags` | 34359738368",
+        "unset_sql": "`purchases`.`flags` = `purchases`.`flags` & ~34359738368"
+      }
+    }
+  },
+  "PurchaseCustomField": {
+    "file": "app/models/purchase_custom_field.rb",
+    "table": "purchase_custom_fields",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_post_purchase": {
+        "bit": "1",
+        "condition": "(`purchase_custom_fields`.`flags` & 1 = 1)",
+        "not_condition": "(`purchase_custom_fields`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`purchase_custom_fields`.`flags` = `purchase_custom_fields`.`flags` | 1",
+        "unset_sql": "`purchase_custom_fields`.`flags` = `purchase_custom_fields`.`flags` & ~1"
+      }
+    }
+  },
+  "RecommendedPurchaseInfo": {
+    "file": "app/models/recommended_purchase_info.rb",
+    "table": "recommended_purchase_infos",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_recurring_purchase": {
+        "bit": "1",
+        "condition": "(`recommended_purchase_infos`.`flags` & 1 = 1)",
+        "not_condition": "(`recommended_purchase_infos`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`recommended_purchase_infos`.`flags` = `recommended_purchase_infos`.`flags` | 1",
+        "unset_sql": "`recommended_purchase_infos`.`flags` = `recommended_purchase_infos`.`flags` & ~1"
+      }
+    }
+  },
+  "Refund": {
+    "file": "app/models/refund.rb",
+    "table": "refunds",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_for_fraud": {
+        "bit": "1",
+        "condition": "(`refunds`.`flags` & 1 = 1)",
+        "not_condition": "(`refunds`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`refunds`.`flags` = `refunds`.`flags` | 1",
+        "unset_sql": "`refunds`.`flags` = `refunds`.`flags` & ~1"
+      }
+    }
+  },
+  "SellerProfileSection": {
+    "file": "app/models/seller_profile_section.rb",
+    "table": "seller_profile_sections",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "DEPRECATED_add_new_products": {
+        "bit": "1",
+        "condition": "(`seller_profile_sections`.`flags` & 1 = 1)",
+        "not_condition": "(`seller_profile_sections`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`seller_profile_sections`.`flags` = `seller_profile_sections`.`flags` | 1",
+        "unset_sql": "`seller_profile_sections`.`flags` = `seller_profile_sections`.`flags` & ~1"
+      },
+      "hide_header": {
+        "bit": "2",
+        "condition": "(`seller_profile_sections`.`flags` & 2 = 2)",
+        "not_condition": "(`seller_profile_sections`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`seller_profile_sections`.`flags` = `seller_profile_sections`.`flags` | 2",
+        "unset_sql": "`seller_profile_sections`.`flags` = `seller_profile_sections`.`flags` & ~2"
+      }
+    }
+  },
+  "ServiceCharge": {
+    "file": "app/models/service_charge.rb",
+    "table": "service_charges",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "chargeback_reversed": {
+        "bit": "1",
+        "condition": "(`service_charges`.`flags` & 1 = 1)",
+        "not_condition": "(`service_charges`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`service_charges`.`flags` = `service_charges`.`flags` | 1",
+        "unset_sql": "`service_charges`.`flags` = `service_charges`.`flags` & ~1"
+      },
+      "was_zip_code_check_performed": {
+        "bit": "2",
+        "condition": "(`service_charges`.`flags` & 2 = 2)",
+        "not_condition": "(`service_charges`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`service_charges`.`flags` = `service_charges`.`flags` | 2",
+        "unset_sql": "`service_charges`.`flags` = `service_charges`.`flags` & ~2"
+      },
+      "is_authorization_charge": {
+        "bit": "4",
+        "condition": "(`service_charges`.`flags` & 4 = 4)",
+        "not_condition": "(`service_charges`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`service_charges`.`flags` = `service_charges`.`flags` | 4",
+        "unset_sql": "`service_charges`.`flags` = `service_charges`.`flags` & ~4"
+      },
+      "is_automatic_charge": {
+        "bit": "8",
+        "condition": "(`service_charges`.`flags` & 8 = 8)",
+        "not_condition": "(`service_charges`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`service_charges`.`flags` = `service_charges`.`flags` | 8",
+        "unset_sql": "`service_charges`.`flags` = `service_charges`.`flags` & ~8"
+      },
+      "is_charge_by_admin": {
+        "bit": "16",
+        "condition": "(`service_charges`.`flags` & 16 = 16)",
+        "not_condition": "(`service_charges`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`service_charges`.`flags` = `service_charges`.`flags` | 16",
+        "unset_sql": "`service_charges`.`flags` = `service_charges`.`flags` & ~16"
+      }
+    }
+  },
+  "ShippingDestination": {
+    "file": "app/models/shipping_destination.rb",
+    "table": "shipping_destinations",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_virtual_country": {
+        "bit": "1",
+        "condition": "(`shipping_destinations`.`flags` & 1 = 1)",
+        "not_condition": "(`shipping_destinations`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`shipping_destinations`.`flags` = `shipping_destinations`.`flags` | 1",
+        "unset_sql": "`shipping_destinations`.`flags` = `shipping_destinations`.`flags` & ~1"
+      }
+    }
+  },
+  "Subscription": {
+    "file": "app/models/subscription.rb",
+    "table": "subscriptions",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_test_subscription": {
+        "bit": "1",
+        "condition": "(`subscriptions`.`flags` & 1 = 1)",
+        "not_condition": "(`subscriptions`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 1",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~1"
+      },
+      "cancelled_by_buyer": {
+        "bit": "2",
+        "condition": "(`subscriptions`.`flags` & 2 = 2)",
+        "not_condition": "(`subscriptions`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 2",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~2"
+      },
+      "cancelled_by_admin": {
+        "bit": "4",
+        "condition": "(`subscriptions`.`flags` & 4 = 4)",
+        "not_condition": "(`subscriptions`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 4",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~4"
+      },
+      "DEPRECATED_flat_fee_applicable": {
+        "bit": "8",
+        "condition": "(`subscriptions`.`flags` & 8 = 8)",
+        "not_condition": "(`subscriptions`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 8",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~8"
+      },
+      "is_resubscription_pending_confirmation": {
+        "bit": "16",
+        "condition": "(`subscriptions`.`flags` & 16 = 16)",
+        "not_condition": "(`subscriptions`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 16",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~16"
+      },
+      "mor_fee_applicable": {
+        "bit": "32",
+        "condition": "(`subscriptions`.`flags` & 32 = 32)",
+        "not_condition": "(`subscriptions`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 32",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~32"
+      },
+      "is_installment_plan": {
+        "bit": "64",
+        "condition": "(`subscriptions`.`flags` & 64 = 64)",
+        "not_condition": "(`subscriptions`.`flags` & 64 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 64 = 64)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 64",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~64"
+      },
+      "renewal_disabled_due_to_indian_card_mandate": {
+        "bit": "128",
+        "condition": "(`subscriptions`.`flags` & 128 = 128)",
+        "not_condition": "(`subscriptions`.`flags` & 128 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 128 = 128)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 128",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~128"
+      },
+      "indian_card_mandate_requires_reauthorization": {
+        "bit": "256",
+        "condition": "(`subscriptions`.`flags` & 256 = 256)",
+        "not_condition": "(`subscriptions`.`flags` & 256 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 256 = 256)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 256",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~256"
+      },
+      "vat_exempt_territory": {
+        "bit": "512",
+        "condition": "(`subscriptions`.`flags` & 512 = 512)",
+        "not_condition": "(`subscriptions`.`flags` & 512 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 512 = 512)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 512",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~512"
+      },
+      "indian_card_mandate_hold_pending": {
+        "bit": "1024",
+        "condition": "(`subscriptions`.`flags` & 1024 = 1024)",
+        "not_condition": "(`subscriptions`.`flags` & 1024 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1024 = 1024)",
+        "set_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` | 1024",
+        "unset_sql": "`subscriptions`.`flags` = `subscriptions`.`flags` & ~1024"
+      }
+    }
+  },
+  "SubscriptionPlanChange": {
+    "file": "app/models/subscription_plan_change.rb",
+    "table": "subscription_plan_changes",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "for_product_price_change": {
+        "bit": "1",
+        "condition": "(`subscription_plan_changes`.`flags` & 1 = 1)",
+        "not_condition": "(`subscription_plan_changes`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`subscription_plan_changes`.`flags` = `subscription_plan_changes`.`flags` | 1",
+        "unset_sql": "`subscription_plan_changes`.`flags` = `subscription_plan_changes`.`flags` & ~1"
+      },
+      "applied": {
+        "bit": "2",
+        "condition": "(`subscription_plan_changes`.`flags` & 2 = 2)",
+        "not_condition": "(`subscription_plan_changes`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`subscription_plan_changes`.`flags` = `subscription_plan_changes`.`flags` | 2",
+        "unset_sql": "`subscription_plan_changes`.`flags` = `subscription_plan_changes`.`flags` & ~2"
+      }
+    }
+  },
+  "TranscodedVideo": {
+    "file": "app/models/transcoded_video.rb",
+    "table": "transcoded_videos",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_hls": {
+        "bit": "1",
+        "condition": "(`transcoded_videos`.`flags` & 1 = 1)",
+        "not_condition": "(`transcoded_videos`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`transcoded_videos`.`flags` = `transcoded_videos`.`flags` | 1",
+        "unset_sql": "`transcoded_videos`.`flags` = `transcoded_videos`.`flags` & ~1"
+      },
+      "via_grmc": {
+        "bit": "2",
+        "condition": "(`transcoded_videos`.`flags` & 2 = 2)",
+        "not_condition": "(`transcoded_videos`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`transcoded_videos`.`flags` = `transcoded_videos`.`flags` | 2",
+        "unset_sql": "`transcoded_videos`.`flags` = `transcoded_videos`.`flags` & ~2"
+      }
+    }
+  },
+  "Upsell": {
+    "file": "app/models/upsell.rb",
+    "table": "upsells",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "replace_selected_products": {
+        "bit": "1",
+        "condition": "(`upsells`.`flags` & 1 = 1)",
+        "not_condition": "(`upsells`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`upsells`.`flags` = `upsells`.`flags` | 1",
+        "unset_sql": "`upsells`.`flags` = `upsells`.`flags` & ~1"
+      },
+      "is_content_upsell": {
+        "bit": "2",
+        "condition": "(`upsells`.`flags` & 2 = 2)",
+        "not_condition": "(`upsells`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`upsells`.`flags` = `upsells`.`flags` | 2",
+        "unset_sql": "`upsells`.`flags` = `upsells`.`flags` & ~2"
+      },
+      "offer_matching_version": {
+        "bit": "8",
+        "condition": "(`upsells`.`flags` & 8 = 8)",
+        "not_condition": "(`upsells`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`upsells`.`flags` = `upsells`.`flags` | 8",
+        "unset_sql": "`upsells`.`flags` = `upsells`.`flags` & ~8"
+      }
+    }
+  },
+  "UrlRedirect": {
+    "file": "app/models/url_redirect.rb",
+    "table": "url_redirects",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "has_been_seen": {
+        "bit": "1",
+        "condition": "(`url_redirects`.`flags` & 1 = 1)",
+        "not_condition": "(`url_redirects`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 1",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~1"
+      },
+      "admin_generated": {
+        "bit": "2",
+        "condition": "(`url_redirects`.`flags` & 2 = 2)",
+        "not_condition": "(`url_redirects`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 2",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~2"
+      },
+      "is_rental": {
+        "bit": "4",
+        "condition": "(`url_redirects`.`flags` & 4 = 4)",
+        "not_condition": "(`url_redirects`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 4",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~4"
+      },
+      "is_done_pdf_stamping": {
+        "bit": "8",
+        "condition": "(`url_redirects`.`flags` & 8 = 8)",
+        "not_condition": "(`url_redirects`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 8",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~8"
+      },
+      "files_ready_notification_requested": {
+        "bit": "16",
+        "condition": "(`url_redirects`.`flags` & 16 = 16)",
+        "not_condition": "(`url_redirects`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 16",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~16"
+      },
+      "files_ready_notification_enqueued": {
+        "bit": "32",
+        "condition": "(`url_redirects`.`flags` & 32 = 32)",
+        "not_condition": "(`url_redirects`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` | 32",
+        "unset_sql": "`url_redirects`.`flags` = `url_redirects`.`flags` & ~32"
+      }
+    }
+  },
+  "User": {
+    "file": "app/models/user.rb",
+    "table": "users",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "announcement_notification_enabled": {
+        "bit": "1",
+        "condition": "(`users`.`flags` & 1 = 1)",
+        "not_condition": "(`users`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1"
+      },
+      "skip_free_sale_analytics": {
+        "bit": "2",
+        "condition": "(`users`.`flags` & 2 = 2)",
+        "not_condition": "(`users`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2"
+      },
+      "purchasing_power_parity_enabled": {
+        "bit": "4",
+        "condition": "(`users`.`flags` & 4 = 4)",
+        "not_condition": "(`users`.`flags` & 4 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4 = 4)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4"
+      },
+      "opt_out_simplified_pricing": {
+        "bit": "8",
+        "condition": "(`users`.`flags` & 8 = 8)",
+        "not_condition": "(`users`.`flags` & 8 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8 = 8)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 8",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~8"
+      },
+      "display_offer_code_field": {
+        "bit": "16",
+        "condition": "(`users`.`flags` & 16 = 16)",
+        "not_condition": "(`users`.`flags` & 16 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16 = 16)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 16",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~16"
+      },
+      "disable_reviews_after_year": {
+        "bit": "32",
+        "condition": "(`users`.`flags` & 32 = 32)",
+        "not_condition": "(`users`.`flags` & 32 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32 = 32)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 32",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~32"
+      },
+      "refund_fee_notice_shown": {
+        "bit": "64",
+        "condition": "(`users`.`flags` & 64 = 64)",
+        "not_condition": "(`users`.`flags` & 64 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 64 = 64)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 64",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~64"
+      },
+      "refunds_disabled": {
+        "bit": "128",
+        "condition": "(`users`.`flags` & 128 = 128)",
+        "not_condition": "(`users`.`flags` & 128 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 128 = 128)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 128",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~128"
+      },
+      "two_factor_authentication_enabled": {
+        "bit": "256",
+        "condition": "(`users`.`flags` & 256 = 256)",
+        "not_condition": "(`users`.`flags` & 256 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 256 = 256)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 256",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~256"
+      },
+      "buyer_signup": {
+        "bit": "512",
+        "condition": "(`users`.`flags` & 512 = 512)",
+        "not_condition": "(`users`.`flags` & 512 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 512 = 512)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 512",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~512"
+      },
+      "enforce_session_timestamping": {
+        "bit": "1024",
+        "condition": "(`users`.`flags` & 1024 = 1024)",
+        "not_condition": "(`users`.`flags` & 1024 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1024 = 1024)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1024",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1024"
+      },
+      "disable_third_party_analytics": {
+        "bit": "2048",
+        "condition": "(`users`.`flags` & 2048 = 2048)",
+        "not_condition": "(`users`.`flags` & 2048 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2048 = 2048)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2048",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2048"
+      },
+      "enable_verify_domain_third_party_services": {
+        "bit": "4096",
+        "condition": "(`users`.`flags` & 4096 = 4096)",
+        "not_condition": "(`users`.`flags` & 4096 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4096 = 4096)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4096",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4096"
+      },
+      "purchasing_power_parity_payment_verification_disabled": {
+        "bit": "8192",
+        "condition": "(`users`.`flags` & 8192 = 8192)",
+        "not_condition": "(`users`.`flags` & 8192 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8192 = 8192)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 8192",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~8192"
+      },
+      "bears_affiliate_fee": {
+        "bit": "16384",
+        "condition": "(`users`.`flags` & 16384 = 16384)",
+        "not_condition": "(`users`.`flags` & 16384 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16384 = 16384)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 16384",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~16384"
+      },
+      "enable_payment_email": {
+        "bit": "32768",
+        "condition": "(`users`.`flags` & 32768 = 32768)",
+        "not_condition": "(`users`.`flags` & 32768 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 32768 = 32768)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 32768",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~32768"
+      },
+      "has_seen_discover": {
+        "bit": "65536",
+        "condition": "(`users`.`flags` & 65536 = 65536)",
+        "not_condition": "(`users`.`flags` & 65536 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 65536 = 65536)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 65536",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~65536"
+      },
+      "should_paypal_payout_be_split": {
+        "bit": "131072",
+        "condition": "(`users`.`flags` & 131072 = 131072)",
+        "not_condition": "(`users`.`flags` & 131072 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 131072 = 131072)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 131072",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~131072"
+      },
+      "pre_signup_affiliate_request_processed": {
+        "bit": "262144",
+        "condition": "(`users`.`flags` & 262144 = 262144)",
+        "not_condition": "(`users`.`flags` & 262144 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 262144 = 262144)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 262144",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~262144"
+      },
+      "payouts_paused_internally": {
+        "bit": "524288",
+        "condition": "(`users`.`flags` & 524288 = 524288)",
+        "not_condition": "(`users`.`flags` & 524288 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 524288 = 524288)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 524288",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~524288"
+      },
+      "disable_comments_email": {
+        "bit": "1048576",
+        "condition": "(`users`.`flags` & 1048576 = 1048576)",
+        "not_condition": "(`users`.`flags` & 1048576 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1048576 = 1048576)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1048576",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1048576"
+      },
+      "has_dismissed_upgrade_banner": {
+        "bit": "2097152",
+        "condition": "(`users`.`flags` & 2097152 = 2097152)",
+        "not_condition": "(`users`.`flags` & 2097152 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2097152 = 2097152)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2097152",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2097152"
+      },
+      "opted_into_upgrading_during_signup": {
+        "bit": "4194304",
+        "condition": "(`users`.`flags` & 4194304 = 4194304)",
+        "not_condition": "(`users`.`flags` & 4194304 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4194304 = 4194304)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4194304",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4194304"
+      },
+      "disable_reviews_email": {
+        "bit": "8388608",
+        "condition": "(`users`.`flags` & 8388608 = 8388608)",
+        "not_condition": "(`users`.`flags` & 8388608 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8388608 = 8388608)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 8388608",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~8388608"
+      },
+      "check_merchant_account_is_linked": {
+        "bit": "16777216",
+        "condition": "(`users`.`flags` & 16777216 = 16777216)",
+        "not_condition": "(`users`.`flags` & 16777216 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 16777216 = 16777216)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 16777216",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~16777216"
+      },
+      "collect_eu_vat": {
+        "bit": "33554432",
+        "condition": "(`users`.`flags` & 33554432 = 33554432)",
+        "not_condition": "(`users`.`flags` & 33554432 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 33554432 = 33554432)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 33554432",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~33554432"
+      },
+      "is_eu_vat_exclusive": {
+        "bit": "67108864",
+        "condition": "(`users`.`flags` & 67108864 = 67108864)",
+        "not_condition": "(`users`.`flags` & 67108864 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 67108864 = 67108864)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 67108864",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~67108864"
+      },
+      "is_team_member": {
+        "bit": "134217728",
+        "condition": "(`users`.`flags` & 134217728 = 134217728)",
+        "not_condition": "(`users`.`flags` & 134217728 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 134217728 = 134217728)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 134217728",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~134217728"
+      },
+      "has_dismissed_getting_started_checklist": {
+        "bit": "268435456",
+        "condition": "(`users`.`flags` & 268435456 = 268435456)",
+        "not_condition": "(`users`.`flags` & 268435456 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 268435456 = 268435456)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 268435456",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~268435456"
+      },
+      "has_used_cli": {
+        "bit": "536870912",
+        "condition": "(`users`.`flags` & 536870912 = 536870912)",
+        "not_condition": "(`users`.`flags` & 536870912 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 536870912 = 536870912)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 536870912",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~536870912"
+      },
+      "disable_paypal_sales": {
+        "bit": "1073741824",
+        "condition": "(`users`.`flags` & 1073741824 = 1073741824)",
+        "not_condition": "(`users`.`flags` & 1073741824 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1073741824 = 1073741824)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1073741824",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1073741824"
+      },
+      "all_adult_products": {
+        "bit": "2147483648",
+        "condition": "(`users`.`flags` & 2147483648 = 2147483648)",
+        "not_condition": "(`users`.`flags` & 2147483648 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2147483648 = 2147483648)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2147483648",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2147483648"
+      },
+      "enable_free_downloads_email": {
+        "bit": "4294967296",
+        "condition": "(`users`.`flags` & 4294967296 = 4294967296)",
+        "not_condition": "(`users`.`flags` & 4294967296 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4294967296 = 4294967296)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4294967296",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4294967296"
+      },
+      "enable_recurring_subscription_charge_email": {
+        "bit": "8589934592",
+        "condition": "(`users`.`flags` & 8589934592 = 8589934592)",
+        "not_condition": "(`users`.`flags` & 8589934592 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8589934592 = 8589934592)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 8589934592",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~8589934592"
+      },
+      "enable_payment_push_notification": {
+        "bit": "17179869184",
+        "condition": "(`users`.`flags` & 17179869184 = 17179869184)",
+        "not_condition": "(`users`.`flags` & 17179869184 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 17179869184 = 17179869184)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 17179869184",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~17179869184"
+      },
+      "enable_recurring_subscription_charge_push_notification": {
+        "bit": "34359738368",
+        "condition": "(`users`.`flags` & 34359738368 = 34359738368)",
+        "not_condition": "(`users`.`flags` & 34359738368 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 34359738368 = 34359738368)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 34359738368",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~34359738368"
+      },
+      "enable_free_downloads_push_notification": {
+        "bit": "68719476736",
+        "condition": "(`users`.`flags` & 68719476736 = 68719476736)",
+        "not_condition": "(`users`.`flags` & 68719476736 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 68719476736 = 68719476736)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 68719476736",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~68719476736"
+      },
+      "million_dollar_announcement_sent": {
+        "bit": "137438953472",
+        "condition": "(`users`.`flags` & 137438953472 = 137438953472)",
+        "not_condition": "(`users`.`flags` & 137438953472 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 137438953472 = 137438953472)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 137438953472",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~137438953472"
+      },
+      "disable_global_affiliate": {
+        "bit": "274877906944",
+        "condition": "(`users`.`flags` & 274877906944 = 274877906944)",
+        "not_condition": "(`users`.`flags` & 274877906944 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 274877906944 = 274877906944)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 274877906944",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~274877906944"
+      },
+      "require_collab_request_approval": {
+        "bit": "549755813888",
+        "condition": "(`users`.`flags` & 549755813888 = 549755813888)",
+        "not_condition": "(`users`.`flags` & 549755813888 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 549755813888 = 549755813888)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 549755813888",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~549755813888"
+      },
+      "payouts_paused_by_user": {
+        "bit": "1099511627776",
+        "condition": "(`users`.`flags` & 1099511627776 = 1099511627776)",
+        "not_condition": "(`users`.`flags` & 1099511627776 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1099511627776 = 1099511627776)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1099511627776",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1099511627776"
+      },
+      "opted_out_of_review_reminders": {
+        "bit": "2199023255552",
+        "condition": "(`users`.`flags` & 2199023255552 = 2199023255552)",
+        "not_condition": "(`users`.`flags` & 2199023255552 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2199023255552 = 2199023255552)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2199023255552",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2199023255552"
+      },
+      "tipping_enabled": {
+        "bit": "4398046511104",
+        "condition": "(`users`.`flags` & 4398046511104 = 4398046511104)",
+        "not_condition": "(`users`.`flags` & 4398046511104 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4398046511104 = 4398046511104)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4398046511104",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4398046511104"
+      },
+      "show_nsfw_products": {
+        "bit": "8796093022208",
+        "condition": "(`users`.`flags` & 8796093022208 = 8796093022208)",
+        "not_condition": "(`users`.`flags` & 8796093022208 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 8796093022208 = 8796093022208)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 8796093022208",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~8796093022208"
+      },
+      "discover_boost_enabled": {
+        "bit": "17592186044416",
+        "condition": "(`users`.`flags` & 17592186044416 = 17592186044416)",
+        "not_condition": "(`users`.`flags` & 17592186044416 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 17592186044416 = 17592186044416)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 17592186044416",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~17592186044416"
+      },
+      "refund_policy_enabled": {
+        "bit": "35184372088832",
+        "condition": "(`users`.`flags` & 35184372088832 = 35184372088832)",
+        "not_condition": "(`users`.`flags` & 35184372088832 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 35184372088832 = 35184372088832)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 35184372088832",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~35184372088832"
+      },
+      "can_connect_stripe": {
+        "bit": "70368744177664",
+        "condition": "(`users`.`flags` & 70368744177664 = 70368744177664)",
+        "not_condition": "(`users`.`flags` & 70368744177664 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 70368744177664 = 70368744177664)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 70368744177664",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~70368744177664"
+      },
+      "upcoming_refund_policy_change_email_sent": {
+        "bit": "140737488355328",
+        "condition": "(`users`.`flags` & 140737488355328 = 140737488355328)",
+        "not_condition": "(`users`.`flags` & 140737488355328 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 140737488355328 = 140737488355328)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 140737488355328",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~140737488355328"
+      },
+      "DEPRECATED_can_create_physical_products": {
+        "bit": "281474976710656",
+        "condition": "(`users`.`flags` & 281474976710656 = 281474976710656)",
+        "not_condition": "(`users`.`flags` & 281474976710656 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 281474976710656 = 281474976710656)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 281474976710656",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~281474976710656"
+      },
+      "paypal_payout_fee_waived": {
+        "bit": "562949953421312",
+        "condition": "(`users`.`flags` & 562949953421312 = 562949953421312)",
+        "not_condition": "(`users`.`flags` & 562949953421312 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 562949953421312 = 562949953421312)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 562949953421312",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~562949953421312"
+      },
+      "dismissed_create_products_with_ai_promo_alert": {
+        "bit": "1125899906842624",
+        "condition": "(`users`.`flags` & 1125899906842624 = 1125899906842624)",
+        "not_condition": "(`users`.`flags` & 1125899906842624 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1125899906842624 = 1125899906842624)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1125899906842624",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1125899906842624"
+      },
+      "disable_affiliate_requests": {
+        "bit": "2251799813685248",
+        "condition": "(`users`.`flags` & 2251799813685248 = 2251799813685248)",
+        "not_condition": "(`users`.`flags` & 2251799813685248 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2251799813685248 = 2251799813685248)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2251799813685248",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2251799813685248"
+      },
+      "refund_policy_enforced": {
+        "bit": "4503599627370496",
+        "condition": "(`users`.`flags` & 4503599627370496 = 4503599627370496)",
+        "not_condition": "(`users`.`flags` & 4503599627370496 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4503599627370496 = 4503599627370496)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4503599627370496",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4503599627370496"
+      },
+      "disable_review_reminders": {
+        "bit": "9007199254740992",
+        "condition": "(`users`.`flags` & 9007199254740992 = 9007199254740992)",
+        "not_condition": "(`users`.`flags` & 9007199254740992 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 9007199254740992 = 9007199254740992)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 9007199254740992",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~9007199254740992"
+      },
+      "ach_payments_enabled": {
+        "bit": "18014398509481984",
+        "condition": "(`users`.`flags` & 18014398509481984 = 18014398509481984)",
+        "not_condition": "(`users`.`flags` & 18014398509481984 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 18014398509481984 = 18014398509481984)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 18014398509481984",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~18014398509481984"
+      },
+      "gifting_disabled": {
+        "bit": "36028797018963968",
+        "condition": "(`users`.`flags` & 36028797018963968 = 36028797018963968)",
+        "not_condition": "(`users`.`flags` & 36028797018963968 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 36028797018963968 = 36028797018963968)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 36028797018963968",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~36028797018963968"
+      },
+      "content_moderation_disabled": {
+        "bit": "72057594037927936",
+        "condition": "(`users`.`flags` & 72057594037927936 = 72057594037927936)",
+        "not_condition": "(`users`.`flags` & 72057594037927936 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 72057594037927936 = 72057594037927936)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 72057594037927936",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~72057594037927936"
+      },
+      "product_page_storefront_enabled": {
+        "bit": "144115188075855872",
+        "condition": "(`users`.`flags` & 144115188075855872 = 144115188075855872)",
+        "not_condition": "(`users`.`flags` & 144115188075855872 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 144115188075855872 = 144115188075855872)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 144115188075855872",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~144115188075855872"
+      },
+      "DEPRECATED_has_dismissed_gumhead_promo": {
+        "bit": "288230376151711744",
+        "condition": "(`users`.`flags` & 288230376151711744 = 288230376151711744)",
+        "not_condition": "(`users`.`flags` & 288230376151711744 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 288230376151711744 = 288230376151711744)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 288230376151711744",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~288230376151711744"
+      },
+      "hide_follow_form": {
+        "bit": "576460752303423488",
+        "condition": "(`users`.`flags` & 576460752303423488 = 576460752303423488)",
+        "not_condition": "(`users`.`flags` & 576460752303423488 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 576460752303423488 = 576460752303423488)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 576460752303423488",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~576460752303423488"
+      },
+      "DEPRECATED_gumhead_enabled": {
+        "bit": "1152921504606846976",
+        "condition": "(`users`.`flags` & 1152921504606846976 = 1152921504606846976)",
+        "not_condition": "(`users`.`flags` & 1152921504606846976 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1152921504606846976 = 1152921504606846976)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 1152921504606846976",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~1152921504606846976"
+      },
+      "link_disabled": {
+        "bit": "2305843009213693952",
+        "condition": "(`users`.`flags` & 2305843009213693952 = 2305843009213693952)",
+        "not_condition": "(`users`.`flags` & 2305843009213693952 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2305843009213693952 = 2305843009213693952)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 2305843009213693952",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~2305843009213693952"
+      },
+      "paypal_card_funding_disabled": {
+        "bit": "4611686018427387904",
+        "condition": "(`users`.`flags` & 4611686018427387904 = 4611686018427387904)",
+        "not_condition": "(`users`.`flags` & 4611686018427387904 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 4611686018427387904 = 4611686018427387904)",
+        "set_sql": "`users`.`flags` = `users`.`flags` | 4611686018427387904",
+        "unset_sql": "`users`.`flags` = `users`.`flags` & ~4611686018427387904"
+      }
+    }
+  },
+  "UserComplianceInfoRequest": {
+    "file": "app/models/user_compliance_info_request.rb",
+    "table": "user_compliance_info_requests",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "only_needs_field_to_be_partially_provided": {
+        "bit": "1",
+        "condition": "(`user_compliance_info_requests`.`flags` & 1 = 1)",
+        "not_condition": "(`user_compliance_info_requests`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`user_compliance_info_requests`.`flags` = `user_compliance_info_requests`.`flags` | 1",
+        "unset_sql": "`user_compliance_info_requests`.`flags` = `user_compliance_info_requests`.`flags` & ~1"
+      }
+    }
+  },
+  "VariantCategory": {
+    "file": "app/models/variant_category.rb",
+    "table": "variant_categories",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "DEPRECATED_variants_are_allowed_to_have_product_files": {
+        "bit": "1",
+        "condition": "(`variant_categories`.`flags` & 1 = 1)",
+        "not_condition": "(`variant_categories`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`variant_categories`.`flags` = `variant_categories`.`flags` | 1",
+        "unset_sql": "`variant_categories`.`flags` = `variant_categories`.`flags` & ~1"
+      }
+    }
+  },
+  "VideoFile": {
+    "file": "app/models/video_file.rb",
+    "table": "video_files",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_transcoded_for_hls": {
+        "bit": "1",
+        "condition": "(`video_files`.`flags` & 1 = 1)",
+        "not_condition": "(`video_files`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`video_files`.`flags` = `video_files`.`flags` | 1",
+        "unset_sql": "`video_files`.`flags` = `video_files`.`flags` & ~1"
+      },
+      "analyze_completed": {
+        "bit": "2",
+        "condition": "(`video_files`.`flags` & 2 = 2)",
+        "not_condition": "(`video_files`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`video_files`.`flags` = `video_files`.`flags` | 2",
+        "unset_sql": "`video_files`.`flags` = `video_files`.`flags` & ~2"
+      }
+    }
+  },
+  "Wishlist": {
+    "file": "app/models/wishlist.rb",
+    "table": "wishlists",
+    "column": "flags",
+    "query_mode": "in_list",
+    "flags": {
+      "discover_opted_out": {
+        "bit": "1",
+        "condition": "(`wishlists`.`flags` in (1))",
+        "not_condition": "(`wishlists`.`flags` not in (1))",
+        "aliased_condition": "(`t2`.`flags` in (1))",
+        "set_sql": "`wishlists`.`flags` = `wishlists`.`flags` | 1",
+        "unset_sql": "`wishlists`.`flags` = `wishlists`.`flags` & ~1"
+      }
+    }
+  },
+  "Workflow": {
+    "file": "app/models/workflow.rb",
+    "table": "workflows",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "send_to_past_customers": {
+        "bit": "1",
+        "condition": "(`workflows`.`flags` & 1 = 1)",
+        "not_condition": "(`workflows`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`workflows`.`flags` = `workflows`.`flags` | 1",
+        "unset_sql": "`workflows`.`flags` = `workflows`.`flags` & ~1"
+      }
+    }
+  },
+  "ZipTaxRate": {
+    "file": "app/models/zip_tax_rate.rb",
+    "table": "zip_tax_rates",
+    "column": "flags",
+    "query_mode": "bit_operator",
+    "flags": {
+      "is_seller_responsible": {
+        "bit": "1",
+        "condition": "(`zip_tax_rates`.`flags` & 1 = 1)",
+        "not_condition": "(`zip_tax_rates`.`flags` & 1 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 1 = 1)",
+        "set_sql": "`zip_tax_rates`.`flags` = `zip_tax_rates`.`flags` | 1",
+        "unset_sql": "`zip_tax_rates`.`flags` = `zip_tax_rates`.`flags` & ~1"
+      },
+      "is_epublication_rate": {
+        "bit": "2",
+        "condition": "(`zip_tax_rates`.`flags` & 2 = 2)",
+        "not_condition": "(`zip_tax_rates`.`flags` & 2 = 0)",
+        "aliased_condition": "(`t2`.`flags` & 2 = 2)",
+        "set_sql": "`zip_tax_rates`.`flags` = `zip_tax_rates`.`flags` | 2",
+        "unset_sql": "`zip_tax_rates`.`flags` = `zip_tax_rates`.`flags` & ~2"
+      }
+    }
+  }
+}

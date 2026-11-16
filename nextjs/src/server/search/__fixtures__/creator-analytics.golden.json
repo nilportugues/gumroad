@@ -1,0 +1,5135 @@
+{
+  "index": "ws70-purchase",
+  "cases": [
+    {
+      "kind": "sales",
+      "name": "by product and date, every product",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-08-31",
+      "to": "2026-09-07",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-08-31"
+          ],
+          "value": {
+            "count": 1,
+            "total": 700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 4,
+            "total": 4000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1900
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-08-31"
+          ],
+          "value": {
+            "count": 1,
+            "total": 600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-01"
+          ],
+          "value": {
+            "count": 1,
+            "total": 800
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 2,
+            "total": 1200
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1800
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-08T00:00:00-07:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"America/Los_Angeles\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 19,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-04"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-08-31"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 700.0
+                    },
+                    "total": {
+                      "value": 700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 4,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 7000.0
+                    },
+                    "total": {
+                      "value": 4000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1700.0
+                    },
+                    "total": {
+                      "value": 1700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1900.0
+                    },
+                    "total": {
+                      "value": 1900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-08-31"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 600.0
+                    },
+                    "total": {
+                      "value": 600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-01"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 800.0
+                    },
+                    "total": {
+                      "value": 800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 5200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1600.0
+                    },
+                    "total": {
+                      "value": 1600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1800.0
+                    },
+                    "total": {
+                      "value": 1800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, listed products",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-08-31",
+      "to": "2026-09-07",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": [
+        1,
+        3
+      ],
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-08-31"
+          ],
+          "value": {
+            "count": 1,
+            "total": 700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 5,
+            "total": 5000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1900
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"filter\":[{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"terms\":{\"product_id\":[1,3]}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-08T00:00:00-07:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"America/Los_Angeles\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 12,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-04"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-08-31"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 700.0
+                    },
+                    "total": {
+                      "value": 700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 5,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 8000.0
+                    },
+                    "total": {
+                      "value": 5000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1700.0
+                    },
+                    "total": {
+                      "value": 1700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1900.0
+                    },
+                    "total": {
+                      "value": 1900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, a single day",
+      "timezone": "UTC",
+      "from": "2026-09-02",
+      "to": "2026-09-02",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 3,
+            "total": 2900
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-09-02T00:00:00Z\",\"lt\":\"2026-09-03T00:00:00Z\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"Etc/UTC\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 4,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 2,
+                  "date": "2026-09-02"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 5900.0
+                    },
+                    "total": {
+                      "value": 2900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, Sydney",
+      "timezone": "Sydney",
+      "from": "2026-09-01",
+      "to": "2026-09-08",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-09-01"
+          ],
+          "value": {
+            "count": 1,
+            "total": 700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 900
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 3,
+            "total": 3100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-08"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1900
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-01"
+          ],
+          "value": {
+            "count": 1,
+            "total": 800
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 2,
+            "total": 1200
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1800
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-09-01T00:00:00+10:00\",\"lt\":\"2026-09-09T00:00:00+10:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"Australia/Sydney\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 18,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-04"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-01"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 700.0
+                    },
+                    "total": {
+                      "value": 700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 900.0
+                    },
+                    "total": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 6100.0
+                    },
+                    "total": {
+                      "value": 3100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1700.0
+                    },
+                    "total": {
+                      "value": 1700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-08"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1900.0
+                    },
+                    "total": {
+                      "value": 1900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-01"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 800.0
+                    },
+                    "total": {
+                      "value": 800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 5200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1600.0
+                    },
+                    "total": {
+                      "value": 1600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1800.0
+                    },
+                    "total": {
+                      "value": 1800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, Tokyo",
+      "timezone": "Tokyo",
+      "from": "2026-09-02",
+      "to": "2026-09-06",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 2,
+            "total": 1900
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 3,
+            "total": 3100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 2,
+            "total": 1200
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1600
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "3",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"filter\":[{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"terms\":{\"product_id\":[1,2,3,4]}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-09-02T00:00:00+09:00\",\"lt\":\"2026-09-07T00:00:00+09:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"Asia/Tokyo\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 14,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-04"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1900.0
+                    },
+                    "total": {
+                      "value": 1900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 6100.0
+                    },
+                    "total": {
+                      "value": 3100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 5200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1600.0
+                    },
+                    "total": {
+                      "value": 1600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, nothing in range",
+      "timezone": "UTC",
+      "from": "2025-01-01",
+      "to": "2025-01-03",
+      "method": "by_product_and_date",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2025-01-01T00:00:00Z\",\"lt\":\"2025-01-04T00:00:00Z\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"Etc/UTC\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "buckets": []
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by country and state",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-08-31",
+      "to": "2026-09-08",
+      "method": "by_product_and_country_and_state",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 2800
+          }
+        },
+        {
+          "key": [
+            "1",
+            "Canada",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 2400
+          }
+        },
+        {
+          "key": [
+            "1",
+            "France",
+            ""
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "United States",
+            "CA"
+          ],
+          "value": {
+            "count": 3,
+            "total": 3500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "United States",
+            "NY"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1100
+          }
+        },
+        {
+          "key": [
+            "2",
+            "",
+            ""
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "Canada",
+            ""
+          ],
+          "value": {
+            "count": 1,
+            "total": 1200
+          }
+        },
+        {
+          "key": [
+            "2",
+            "France",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 2600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "United States",
+            "CA"
+          ],
+          "value": {
+            "count": 2,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "United States",
+            "NY"
+          ],
+          "value": {
+            "count": 2,
+            "total": 2200
+          }
+        },
+        {
+          "key": [
+            "3",
+            "United States",
+            "CA"
+          ],
+          "value": {
+            "count": 2,
+            "total": 2000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-09T00:00:00-07:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"country\":{\"terms\":{\"field\":\"ip_country\",\"missing_bucket\":true}}},{\"state\":{\"terms\":{\"field\":\"ip_state\",\"missing_bucket\":true}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 19,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "country": "United States",
+                  "state": "CA"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "country": null,
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2800.0
+                    },
+                    "total": {
+                      "value": 2800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "country": "Canada",
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2400.0
+                    },
+                    "total": {
+                      "value": 2400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "country": "France",
+                      "state": null
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "country": "United States",
+                      "state": "CA"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 6500.0
+                    },
+                    "total": {
+                      "value": 3500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "country": "United States",
+                      "state": "NY"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1100.0
+                    },
+                    "total": {
+                      "value": 1100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": null,
+                      "state": null
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "Canada",
+                      "state": null
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "France",
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2600.0
+                    },
+                    "total": {
+                      "value": 2600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "United States",
+                      "state": "CA"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 5000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "United States",
+                      "state": "NY"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2200.0
+                    },
+                    "total": {
+                      "value": 2200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "country": "United States",
+                      "state": "CA"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2000.0
+                    },
+                    "total": {
+                      "value": 2000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by country and state, listed products",
+      "timezone": "UTC",
+      "from": "2026-08-31",
+      "to": "2026-11-02",
+      "method": "by_product_and_country_and_state",
+      "interval": "day",
+      "product_ids": [
+        2
+      ],
+      "outcome": [
+        {
+          "key": [
+            "2",
+            "",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 3800
+          }
+        },
+        {
+          "key": [
+            "2",
+            "Canada",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 3400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "France",
+            ""
+          ],
+          "value": {
+            "count": 2,
+            "total": 2600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "United States",
+            "CA"
+          ],
+          "value": {
+            "count": 3,
+            "total": 3000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "United States",
+            "NY"
+          ],
+          "value": {
+            "count": 2,
+            "total": 2200
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"filter\":[{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"terms\":{\"product_id\":[2]}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00Z\",\"lt\":\"2026-11-03T00:00:00Z\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"country\":{\"terms\":{\"field\":\"ip_country\",\"missing_bucket\":true}}},{\"state\":{\"terms\":{\"field\":\"ip_state\",\"missing_bucket\":true}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 11,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 2,
+                  "country": "United States",
+                  "state": "NY"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": null,
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 3800.0
+                    },
+                    "total": {
+                      "value": 3800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "Canada",
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 3400.0
+                    },
+                    "total": {
+                      "value": 3400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "France",
+                      "state": null
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2600.0
+                    },
+                    "total": {
+                      "value": 2600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "United States",
+                      "state": "CA"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 7000.0
+                    },
+                    "total": {
+                      "value": 3000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "country": "United States",
+                      "state": "NY"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2200.0
+                    },
+                    "total": {
+                      "value": 2200.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by referrer and date",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-08-31",
+      "to": "2026-09-07",
+      "method": "by_product_and_referrer_and_date",
+      "interval": "day",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 2,
+            "total": 2000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "google.com",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "recommended_by_gumroad",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 900
+          }
+        },
+        {
+          "key": [
+            "1",
+            "recommended_by_gumroad",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1900
+          }
+        },
+        {
+          "key": [
+            "1",
+            "twitter.com",
+            "2026-08-31"
+          ],
+          "value": {
+            "count": 1,
+            "total": 700
+          }
+        },
+        {
+          "key": [
+            "1",
+            "twitter.com",
+            "2026-09-06"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1700
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-01"
+          ],
+          "value": {
+            "count": 1,
+            "total": 800
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 0
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-07"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1800
+          }
+        },
+        {
+          "key": [
+            "2",
+            "google.com",
+            "2026-08-31"
+          ],
+          "value": {
+            "count": 1,
+            "total": 600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "google.com",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1600
+          }
+        },
+        {
+          "key": [
+            "2",
+            "recommended_by_gumroad",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "twitter.com",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1200
+          }
+        },
+        {
+          "key": [
+            "3",
+            "direct",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "3",
+            "direct",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-08T00:00:00-07:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"referrer_domain\":{\"terms\":{\"field\":\"referrer_domain\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"America/Los_Angeles\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 19,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "referrer_domain": "direct",
+                  "date": "2026-09-04"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 2,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 5000.0
+                    },
+                    "total": {
+                      "value": 2000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "google.com",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1100.0
+                    },
+                    "total": {
+                      "value": 1100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 900.0
+                    },
+                    "total": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1900.0
+                    },
+                    "total": {
+                      "value": 1900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "twitter.com",
+                      "date": "2026-08-31"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 700.0
+                    },
+                    "total": {
+                      "value": 700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "twitter.com",
+                      "date": "2026-09-06"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1700.0
+                    },
+                    "total": {
+                      "value": 1700.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-01"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 800.0
+                    },
+                    "total": {
+                      "value": 800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 4000.0
+                    },
+                    "total": {
+                      "value": 0.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-07"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1800.0
+                    },
+                    "total": {
+                      "value": 1800.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "google.com",
+                      "date": "2026-08-31"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 600.0
+                    },
+                    "total": {
+                      "value": 600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "google.com",
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1600.0
+                    },
+                    "total": {
+                      "value": 1600.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "twitter.com",
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by referrer and date, listed products",
+      "timezone": "London",
+      "from": "2026-09-01",
+      "to": "2026-09-06",
+      "method": "by_product_and_referrer_and_date",
+      "interval": "day",
+      "product_ids": [
+        1
+      ],
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 3,
+            "total": 3000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-04"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-05"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1500
+          }
+        },
+        {
+          "key": [
+            "1",
+            "google.com",
+            "2026-09-03"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "recommended_by_gumroad",
+            "2026-09-02"
+          ],
+          "value": {
+            "count": 1,
+            "total": 900
+          }
+        },
+        {
+          "key": [
+            "1",
+            "twitter.com",
+            "2026-09-01"
+          ],
+          "value": {
+            "count": 1,
+            "total": 700
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"filter\":[{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"terms\":{\"product_id\":[1]}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-09-01T00:00:00+01:00\",\"lt\":\"2026-09-07T00:00:00+01:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"referrer_domain\":{\"terms\":{\"field\":\"referrer_domain\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"Europe/London\",\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 8,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 1,
+                  "referrer_domain": "twitter.com",
+                  "date": "2026-09-01"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 3,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 3000.0
+                    },
+                    "price_cents_total": {
+                      "value": 6000.0
+                    },
+                    "total": {
+                      "value": 3000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-04"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1500.0
+                    },
+                    "total": {
+                      "value": 1500.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "google.com",
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1100.0
+                    },
+                    "total": {
+                      "value": 1100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 900.0
+                    },
+                    "total": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "twitter.com",
+                      "date": "2026-09-01"
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 700.0
+                    },
+                    "total": {
+                      "value": 700.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by product and date, hourly across the New York fall-back",
+      "timezone": "Eastern Time (US & Canada)",
+      "from": "2026-10-31",
+      "to": "2026-11-02",
+      "method": "by_product_and_date",
+      "interval": "hour",
+      "product_ids": null,
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "2026-11-01T01:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "2026-11-01T02:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2300
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-11-01T00:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-11-01T01:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2200
+          }
+        },
+        {
+          "key": [
+            "2",
+            "2026-11-02T05:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2400
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[42]}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-10-31T00:00:00-04:00\",\"lt\":\"2026-11-03T00:00:00-05:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"America/New_York\",\"field\":\"created_at\",\"calendar_interval\":\"hour\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 5,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 2,
+                  "date": 1793613600000
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": 1793509200000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2100.0
+                    },
+                    "total": {
+                      "value": 2100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "date": 1793516400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2300.0
+                    },
+                    "total": {
+                      "value": 2300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": 1793505600000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2000.0
+                    },
+                    "total": {
+                      "value": 2000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": 1793512800000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2200.0
+                    },
+                    "total": {
+                      "value": 2200.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "date": 1793613600000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 2400.0
+                    },
+                    "total": {
+                      "value": 2400.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "by referrer and date, hourly",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-09-02",
+      "to": "2026-09-04",
+      "method": "by_product_and_referrer_and_date",
+      "interval": "hour",
+      "product_ids": [
+        1,
+        2
+      ],
+      "outcome": [
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-02T05:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-02T11:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 0
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-02T12:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 2000
+          }
+        },
+        {
+          "key": [
+            "1",
+            "direct",
+            "2026-09-04T07:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1300
+          }
+        },
+        {
+          "key": [
+            "1",
+            "google.com",
+            "2026-09-02T18:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1100
+          }
+        },
+        {
+          "key": [
+            "1",
+            "recommended_by_gumroad",
+            "2026-09-02T05:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 900
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-02T06:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1000
+          }
+        },
+        {
+          "key": [
+            "2",
+            "direct",
+            "2026-09-03T12:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 0
+          }
+        },
+        {
+          "key": [
+            "2",
+            "recommended_by_gumroad",
+            "2026-09-04T17:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1400
+          }
+        },
+        {
+          "key": [
+            "2",
+            "twitter.com",
+            "2026-09-03T16:00"
+          ],
+          "value": {
+            "count": 1,
+            "total": 1200
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"filter\":[{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"terms\":{\"product_id\":[1,2]}}],\"must\":[{\"range\":{\"created_at\":{\"gte\":\"2026-09-02T00:00:00-07:00\",\"lt\":\"2026-09-05T00:00:00-07:00\"}}}]}},\"size\":0,\"timeout\":\"60s\",\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"referrer_domain\":{\"terms\":{\"field\":\"referrer_domain\"}}},{\"date\":{\"date_histogram\":{\"time_zone\":\"America/Los_Angeles\",\"field\":\"created_at\",\"calendar_interval\":\"hour\"}}}]},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"chargedback_agg\":{\"filter\":{\"term\":{\"not_chargedback_or_chargedback_reversed\":false}},\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}}}},\"total\":{\"bucket_script\":{\"buckets_path\":{\"price_cents_total\":\"price_cents_total\",\"amount_refunded_cents_total\":\"amount_refunded_cents_total\",\"chargedback_price_cents_total\":\"chargedback_agg\\u003eprice_cents_total\",\"chargedback_amount_refunded_cents_total\":\"chargedback_agg\\u003eamount_refunded_cents_total\"},\"script\":\"params.price_cents_total - params.amount_refunded_cents_total - params.chargedback_price_cents_total + params.chargedback_amount_refunded_cents_total\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 10,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 2,
+                  "referrer_domain": "twitter.com",
+                  "date": 1788476400000
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": 1788350400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": 1788372000000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 2000.0
+                    },
+                    "price_cents_total": {
+                      "value": 2000.0
+                    },
+                    "total": {
+                      "value": 0.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": 1788375600000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 1000.0
+                    },
+                    "price_cents_total": {
+                      "value": 3000.0
+                    },
+                    "total": {
+                      "value": 2000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "direct",
+                      "date": 1788530400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1300.0
+                    },
+                    "total": {
+                      "value": 1300.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "google.com",
+                      "date": 1788397200000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1100.0
+                    },
+                    "total": {
+                      "value": 1100.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 1,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": 1788350400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 900.0
+                    },
+                    "total": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": 1788354000000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1000.0
+                    },
+                    "total": {
+                      "value": 1000.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "direct",
+                      "date": 1788462000000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 1,
+                      "amount_refunded_cents_total": {
+                        "value": 500.0
+                      },
+                      "price_cents_total": {
+                        "value": 4000.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 500.0
+                    },
+                    "price_cents_total": {
+                      "value": 4000.0
+                    },
+                    "total": {
+                      "value": 0.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "recommended_by_gumroad",
+                      "date": 1788566400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1400.0
+                    },
+                    "total": {
+                      "value": 1400.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 2,
+                      "referrer_domain": "twitter.com",
+                      "date": 1788476400000
+                    },
+                    "doc_count": 1,
+                    "chargedback_agg": {
+                      "doc_count": 0,
+                      "amount_refunded_cents_total": {
+                        "value": 0.0
+                      },
+                      "price_cents_total": {
+                        "value": 0.0
+                      }
+                    },
+                    "amount_refunded_cents_total": {
+                      "value": 0.0
+                    },
+                    "price_cents_total": {
+                      "value": 1200.0
+                    },
+                    "total": {
+                      "value": 1200.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "sales",
+      "name": "a hourly range that is too long",
+      "timezone": "UTC",
+      "from": "2026-09-01",
+      "to": "2026-09-30",
+      "method": "by_product_and_date",
+      "interval": "hour",
+      "product_ids": null,
+      "outcome": {
+        "error": {
+          "class": "ArgumentError",
+          "message": "date range cannot exceed 7 days for the hour interval"
+        }
+      },
+      "exchanges": []
+    },
+    {
+      "kind": "churn",
+      "name": "Pacific, all subscription products",
+      "timezone": "Pacific Time (US & Canada)",
+      "from": "2026-08-31",
+      "to": "2026-09-07",
+      "product_ids": [
+        3,
+        4
+      ],
+      "outcome": {
+        "churn_events": [
+          {
+            "key": [
+              "3",
+              "2026-09-02"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 900
+            }
+          },
+          {
+            "key": [
+              "3",
+              "2026-09-05"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 1500
+            }
+          }
+        ],
+        "new_subscriptions": [
+          {
+            "key": [
+              "3",
+              "2026-09-03"
+            ],
+            "value": 1
+          }
+        ],
+        "initial_active_counts": [
+          {
+            "key": [
+              "3"
+            ],
+            "value": 2
+          },
+          {
+            "key": [
+              "4"
+            ],
+            "value": 1
+          }
+        ]
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"subscription_cancelled_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-08T00:00:00-07:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}},{\"exists\":{\"field\":\"subscription_cancelled_at\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"subscription_cancelled_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"America/Los_Angeles\"}}}]},\"aggs\":{\"churned_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}},\"revenue_lost_cents\":{\"sum\":{\"field\":\"monthly_recurring_revenue\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-05"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 1500.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"gte\":\"2026-08-31T00:00:00-07:00\",\"lt\":\"2026-09-08T00:00:00-07:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"America/Los_Angeles\"}}}]},\"aggs\":{\"new_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-03"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "new_customers": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"lt\":\"2026-08-31T00:00:00-07:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}],\"should\":[{\"bool\":{\"must_not\":{\"exists\":{\"field\":\"subscription_deactivated_at\"}}}},{\"range\":{\"subscription_deactivated_at\":{\"gt\":\"2026-08-31T00:00:00-07:00\"}}}],\"minimum_should_match\":1}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}}]},\"aggs\":{\"active_subscribers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 4
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3
+                    },
+                    "doc_count": 2,
+                    "active_subscribers": {
+                      "value": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 4
+                    },
+                    "doc_count": 1,
+                    "active_subscribers": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "churn",
+      "name": "UTC, one product",
+      "timezone": "UTC",
+      "from": "2026-09-01",
+      "to": "2026-09-05",
+      "product_ids": [
+        3
+      ],
+      "outcome": {
+        "churn_events": [
+          {
+            "key": [
+              "3",
+              "2026-09-02"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 900
+            }
+          },
+          {
+            "key": [
+              "3",
+              "2026-09-05"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 1500
+            }
+          }
+        ],
+        "new_subscriptions": [
+          {
+            "key": [
+              "3",
+              "2026-09-03"
+            ],
+            "value": 1
+          }
+        ],
+        "initial_active_counts": [
+          {
+            "key": [
+              "3"
+            ],
+            "value": 2
+          }
+        ]
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3]}},{\"range\":{\"subscription_cancelled_at\":{\"gte\":\"2026-09-01T00:00:00Z\",\"lt\":\"2026-09-06T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}},{\"exists\":{\"field\":\"subscription_cancelled_at\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"subscription_cancelled_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Etc/UTC\"}}}]},\"aggs\":{\"churned_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}},\"revenue_lost_cents\":{\"sum\":{\"field\":\"monthly_recurring_revenue\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-05"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 1500.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3]}},{\"range\":{\"created_at\":{\"gte\":\"2026-09-01T00:00:00Z\",\"lt\":\"2026-09-06T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Etc/UTC\"}}}]},\"aggs\":{\"new_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-03"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "new_customers": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3]}},{\"range\":{\"created_at\":{\"lt\":\"2026-09-01T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}],\"should\":[{\"bool\":{\"must_not\":{\"exists\":{\"field\":\"subscription_deactivated_at\"}}}},{\"range\":{\"subscription_deactivated_at\":{\"gt\":\"2026-09-01T00:00:00Z\"}}}],\"minimum_should_match\":1}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}}]},\"aggs\":{\"active_subscribers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3
+                    },
+                    "doc_count": 2,
+                    "active_subscribers": {
+                      "value": 2
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "churn",
+      "name": "Sydney",
+      "timezone": "Sydney",
+      "from": "2026-09-02",
+      "to": "2026-09-06",
+      "product_ids": [
+        3,
+        4
+      ],
+      "outcome": {
+        "churn_events": [
+          {
+            "key": [
+              "3",
+              "2026-09-02"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 900
+            }
+          },
+          {
+            "key": [
+              "3",
+              "2026-09-05"
+            ],
+            "value": {
+              "churned_count": 1,
+              "revenue_lost_cents": 1500
+            }
+          }
+        ],
+        "new_subscriptions": [
+          {
+            "key": [
+              "3",
+              "2026-09-03"
+            ],
+            "value": 1
+          }
+        ],
+        "initial_active_counts": [
+          {
+            "key": [
+              "3"
+            ],
+            "value": 2
+          },
+          {
+            "key": [
+              "4"
+            ],
+            "value": 1
+          }
+        ]
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"subscription_cancelled_at\":{\"gte\":\"2026-09-02T00:00:00+10:00\",\"lt\":\"2026-09-07T00:00:00+10:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}},{\"exists\":{\"field\":\"subscription_cancelled_at\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"subscription_cancelled_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Australia/Sydney\"}}}]},\"aggs\":{\"churned_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}},\"revenue_lost_cents\":{\"sum\":{\"field\":\"monthly_recurring_revenue\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 2,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-05"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-02"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 900.0
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-05"
+                    },
+                    "doc_count": 1,
+                    "churned_customers": {
+                      "value": 1
+                    },
+                    "revenue_lost_cents": {
+                      "value": 1500.0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"gte\":\"2026-09-02T00:00:00+10:00\",\"lt\":\"2026-09-07T00:00:00+10:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Australia/Sydney\"}}}]},\"aggs\":{\"new_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 3,
+                  "date": "2026-09-03"
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3,
+                      "date": "2026-09-03"
+                    },
+                    "doc_count": 1,
+                    "new_customers": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"lt\":\"2026-09-02T00:00:00+10:00\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}],\"should\":[{\"bool\":{\"must_not\":{\"exists\":{\"field\":\"subscription_deactivated_at\"}}}},{\"range\":{\"subscription_deactivated_at\":{\"gt\":\"2026-09-02T00:00:00+10:00\"}}}],\"minimum_should_match\":1}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}}]},\"aggs\":{\"active_subscribers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 3,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "after_key": {
+                  "product_id": 4
+                },
+                "buckets": [
+                  {
+                    "key": {
+                      "product_id": 3
+                    },
+                    "doc_count": 2,
+                    "active_subscribers": {
+                      "value": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "product_id": 4
+                    },
+                    "doc_count": 1,
+                    "active_subscribers": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "churn",
+      "name": "no products",
+      "timezone": "UTC",
+      "from": "2026-09-01",
+      "to": "2026-09-05",
+      "product_ids": [],
+      "outcome": {
+        "churn_events": [],
+        "new_subscriptions": [],
+        "initial_active_counts": []
+      },
+      "exchanges": []
+    },
+    {
+      "kind": "churn",
+      "name": "a window before any subscription",
+      "timezone": "UTC",
+      "from": "2025-01-01",
+      "to": "2025-01-10",
+      "product_ids": [
+        3,
+        4
+      ],
+      "outcome": {
+        "churn_events": [],
+        "new_subscriptions": [],
+        "initial_active_counts": []
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"subscription_cancelled_at\":{\"gte\":\"2025-01-01T00:00:00Z\",\"lt\":\"2025-01-11T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}},{\"exists\":{\"field\":\"subscription_cancelled_at\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"subscription_cancelled_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Etc/UTC\"}}}]},\"aggs\":{\"churned_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}},\"revenue_lost_cents\":{\"sum\":{\"field\":\"monthly_recurring_revenue\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "buckets": []
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"gte\":\"2025-01-01T00:00:00Z\",\"lt\":\"2025-01-11T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}]}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}},{\"date\":{\"date_histogram\":{\"field\":\"created_at\",\"calendar_interval\":\"day\",\"format\":\"yyyy-MM-dd\",\"time_zone\":\"Etc/UTC\"}}}]},\"aggs\":{\"new_customers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "buckets": []
+              }
+            }
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/ws70-purchase/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"term\":{\"successful_authorization_or_without_preorder\":true}},{\"terms\":{\"purchase_state\":[\"preorder_authorization_successful\",\"successful\",\"preorder_concluded_successfully\"]}},{\"term\":{\"seller_id\":42}},{\"terms\":{\"product_id\":[3,4]}},{\"range\":{\"created_at\":{\"lt\":\"2025-01-01T00:00:00Z\"}}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_gift_receiver_purchase\"}},{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}},{\"term\":{\"selected_flags\":\"is_commission_completion_purchase\"}}],\"must\":[{\"term\":{\"selected_flags\":\"is_original_subscription_purchase\"}}],\"should\":[{\"bool\":{\"must_not\":{\"exists\":{\"field\":\"subscription_deactivated_at\"}}}},{\"range\":{\"subscription_deactivated_at\":{\"gt\":\"2025-01-01T00:00:00Z\"}}}],\"minimum_should_match\":1}},\"size\":0,\"aggs\":{\"composite_agg\":{\"composite\":{\"size\":65535,\"sources\":[{\"product_id\":{\"terms\":{\"field\":\"product_id\"}}}]},\"aggs\":{\"active_subscribers\":{\"cardinality\":{\"field\":\"subscription_id\"}}}}}}",
+          "status": 200,
+          "response": {
+            "timed_out": false,
+            "_shards": {
+              "total": 1,
+              "successful": 1,
+              "skipped": 0,
+              "failed": 0
+            },
+            "hits": {
+              "total": {
+                "value": 0,
+                "relation": "eq"
+              },
+              "max_score": null,
+              "hits": []
+            },
+            "aggregations": {
+              "composite_agg": {
+                "buckets": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

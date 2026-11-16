@@ -1,0 +1,633 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a chunk not processed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n- 1\n- 2\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk processed with an old revision",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n- 1\n- 2\n",
+                "--- []\n",
+                "--- []\n",
+                1,
+                "0",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "---\n- 1\n- 2\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk with no purchases",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "--- []\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk whose export is gone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                7,
+                "---\n- 1\n- 2\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExportChunk with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a chunk id of zero",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExportChunk with 'id'=0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the chunk id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "---\n- 1\n- 2\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        "2"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExportChunk without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a chunk id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n- 1\n- 2\n",
+                null,
+                null,
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a chunk id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExportChunk with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_export_chunks`.* FROM `sales_export_chunks` WHERE `sales_export_chunks`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "export_id",
+              "purchase_ids",
+              "custom_fields",
+              "purchases_data",
+              "processed",
+              "revision",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "two arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 2, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::ProcessChunkWorker",
+      "args": [
+        1,
+        2
+      ],
+      "hands_back": false
+    }
+  ]
+}

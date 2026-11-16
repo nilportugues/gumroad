@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "spec": "spec/requests/dashboard_home_signed_in_spec.rb",
+  "example": "Dashboard home when signed in redirects a signed-out visitor to the login page",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "035fe3e8e238e0cb49e35adc91e934930fca45bd2b33368aca8f3e68aab5e3d6e1936026de000bdf4f619059688c6afc95abbefc5b481417a5a5d4a69fa20e5d",
+  "recordedOn": "2026-11-01",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": null,
+                "json_data": "{}",
+                "created_at": "<now-1m>",
+                "updated_at": "<now-1m>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": null
+              },
+              {
+                "id": 2,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "braintree",
+                "charge_processor_merchant_id": "test-braintree-merchant-account-id",
+                "json_data": null,
+                "created_at": "<now-1m>",
+                "updated_at": "<now-1m>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": null
+              },
+              {
+                "id": 3,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "paypal",
+                "charge_processor_merchant_id": null,
+                "json_data": null,
+                "created_at": "<now-1m>",
+                "updated_at": "<now-1m>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "merchant_accounts": 4
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/dashboard",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 302,
+        "location": "http://app.test.gumroad.com:31337/login?next=%2Fdashboard",
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "y5+zakG7+dsYSwyX/ZihbPGM4KvxQWNeR2AAD3HcZTb7jYAwjHzPEV0lr6rlbSXiv53/RaAU6/sN7xCy79w3wK/qXxZkQ3PeyABBfYW7Zsf6KRsC17zJeXFpb4DpUeSaW20uCqJ3r63xTS82MmsUc1bYa31crCm3jx1L1bAoY6fJ52Y7NlnHC4bHhkhWvoLPIQJJaxc9tL+CWtiNrpnOUEujMB77hw3XaSsXn/tii1Smwx3zKXwXRt8QsZRoOcEFaPJTqcBfn97d2MLssEscoTWXyrLET8OcmRKHq1zk/PCYNtY/wOQowqJsPYxAKlaWfwd02kbXn5jU7hmCbF2zyoW7OKt8hbGFDxXa6LrMWOsDlZsyjDT+nXyQjkZRNVnQMygV--Z3F4uORmwxt7ve7Y--d+09owEQ0M5GeAYCxiRaOw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

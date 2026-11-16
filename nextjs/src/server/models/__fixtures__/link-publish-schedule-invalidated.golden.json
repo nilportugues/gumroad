@@ -1,0 +1,163 @@
+{
+  "cases": [
+    {
+      "name": "deleting a product",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "deleted_at": "2026-01-02T03:04:05Z"
+      },
+      "invalidated": true
+    },
+    {
+      "name": "restoring a deleted product",
+      "initial": {
+        "deleted_at": "2026-01-02T03:04:05Z",
+        "flags": 0
+      },
+      "change": {
+        "deleted_at": null
+      },
+      "invalidated": false
+    },
+    {
+      "name": "publishing a draft",
+      "initial": {
+        "draft": true,
+        "flags": 0
+      },
+      "change": {
+        "draft": false
+      },
+      "invalidated": true
+    },
+    {
+      "name": "turning a published product into a draft",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "draft": true
+      },
+      "invalidated": false
+    },
+    {
+      "name": "disabling a product",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "purchase_disabled_at": "2026-01-02T03:04:05Z"
+      },
+      "invalidated": true
+    },
+    {
+      "name": "enabling a disabled product",
+      "initial": {
+        "purchase_disabled_at": "2026-01-02T03:04:05Z",
+        "flags": 0
+      },
+      "change": {
+        "purchase_disabled_at": null
+      },
+      "invalidated": false
+    },
+    {
+      "name": "moving the time a product was disabled",
+      "initial": {
+        "purchase_disabled_at": "2026-01-02T03:04:05Z",
+        "flags": 0
+      },
+      "change": {
+        "purchase_disabled_at": "2026-01-03T03:04:05Z"
+      },
+      "invalidated": true
+    },
+    {
+      "name": "banning a product",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "banned_at": "2026-01-02T03:04:05Z"
+      },
+      "invalidated": true
+    },
+    {
+      "name": "unbanning a product",
+      "initial": {
+        "banned_at": "2026-01-02T03:04:05Z",
+        "flags": 0
+      },
+      "change": {
+        "banned_at": null
+      },
+      "invalidated": false
+    },
+    {
+      "name": "an admin takedown of a draft that is already disabled",
+      "initial": {
+        "draft": true,
+        "purchase_disabled_at": "2026-01-02T03:04:05Z",
+        "flags": 0
+      },
+      "change": {
+        "flags": 268435456
+      },
+      "invalidated": true
+    },
+    {
+      "name": "an admin takedown of a published product",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "flags": 268435456
+      },
+      "invalidated": true
+    },
+    {
+      "name": "another flag on a product an admin already took down",
+      "initial": {
+        "flags": 268435456,
+        "flags": 268435456
+      },
+      "change": {
+        "flags": 268435472
+      },
+      "invalidated": false
+    },
+    {
+      "name": "clearing the takedown flag",
+      "initial": {
+        "flags": 268435456,
+        "flags": 268435456
+      },
+      "change": {
+        "flags": 0
+      },
+      "invalidated": false
+    },
+    {
+      "name": "a flag that is not a takedown",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "flags": 16
+      },
+      "invalidated": false
+    },
+    {
+      "name": "renaming a product",
+      "initial": {
+        "flags": 0
+      },
+      "change": {
+        "name": "Renamed"
+      },
+      "invalidated": false
+    }
+  ]
+}

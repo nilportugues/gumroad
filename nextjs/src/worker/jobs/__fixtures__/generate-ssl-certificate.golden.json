@@ -1,0 +1,771 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a domain to certify",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a domain among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "shop2.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        2
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a domain that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find CustomDomain with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        9
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "a deleted domain",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "a domain that already has a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "an unverified domain",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "unverified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a domain of a product",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                5,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "the domain id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "shop2.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        "2"
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a rate limit reschedule count",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1,
+        3
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a domain id of zero",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find CustomDomain with 'id'=0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        0
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "a domain id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find CustomDomain without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        null
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "a domain id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1.0
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "a domain id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find CustomDomain with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        "one"
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1..2)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "three arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 3, expected 1..2)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1,
+        0,
+        0
+      ],
+      "rails_env": "production",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "staging outside a branch deployment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "staging",
+      "branch_deployment": null,
+      "hands_back": true
+    },
+    {
+      "name": "staging in a branch deployment",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "staging",
+      "branch_deployment": "true",
+      "hands_back": false
+    },
+    {
+      "name": "staging with an empty branch deployment",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "staging",
+      "branch_deployment": "",
+      "hands_back": false
+    },
+    {
+      "name": "the test environment",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "test",
+      "branch_deployment": null,
+      "hands_back": false
+    },
+    {
+      "name": "the development environment",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "GenerateSslCertificate",
+      "args": [
+        1
+      ],
+      "rails_env": "development",
+      "branch_deployment": null,
+      "hands_back": false
+    }
+  ]
+}

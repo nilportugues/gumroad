@@ -1,0 +1,791 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "an export with no chunks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export with a stale chunk",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` > 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export with three stale chunks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` > 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` > 2 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                3
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` = 3",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` > 3 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export whose chunks belong to another export",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "the second of two exports",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 2 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 2 AND `sales_export_chunks`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 2 AND `sales_export_chunks`.`id` > 2 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        99
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export of zero",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id given as a String",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "DELETE FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 AND `sales_export_chunks`.`id` > 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export id given as a String that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=\"99\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        "99"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id given as digits past the id range",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=\"99999999999999999999\""
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        "99999999999999999999"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id that is nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id that is not digits",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=\"abc\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        "abc"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id with digits and letters",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        "1abc"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export id given as a Float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export id given as an Array",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'chunks' for an instance of Array"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                "---\n:bool:\n  :filter:\n  - :term:\n      :seller_id: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        [
+          1
+        ]
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id given as a Hash",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'={\"id\" => 1}"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        {
+          "id": 1
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id that is negative",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=-1"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = -1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        -1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export with a blank query",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `sales_export_chunks`.`id` FROM `sales_export_chunks` WHERE `sales_export_chunks`.`export_id` = 1 ORDER BY `sales_export_chunks`.`id` ASC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CreateAndEnqueueChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    }
+  ]
+}

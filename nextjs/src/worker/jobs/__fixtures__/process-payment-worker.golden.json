@@ -1,0 +1,2398 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a payment that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment with 'id'=99"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        99
+      ],
+      "processed": []
+    },
+    {
+      "name": "a payment id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        null
+      ],
+      "processed": []
+    },
+    {
+      "name": "a payment id given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        "1"
+      ],
+      "processed": [
+        [
+          "STRIPE",
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a payment id given as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1.0
+      ],
+      "processed": [
+        [
+          "STRIPE",
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a payment id given as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find Payment with 'id'=\"abc\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        "abc"
+      ],
+      "processed": []
+    },
+    {
+      "name": "a creating payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "creating",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "creating",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a processing payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": [
+        [
+          "STRIPE",
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a cancelled payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "cancelled",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a unclaimed payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "unclaimed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "unclaimed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a completed payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "completed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a failed payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "failed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a reversed payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "reversed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "reversed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a returned payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "returned",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "returned",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a payment with no state",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a state the machine does not know",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "mystery",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "mystery",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": []
+    },
+    {
+      "name": "a processing paypal payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "PAYPAL",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "PAYPAL",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": [
+        [
+          "PAYPAL",
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a processing payment with no processor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null,
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": [
+        [
+          null,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a processing payment of another processor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "WIRE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "WIRE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        1
+      ],
+      "processed": [
+        [
+          "WIRE",
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "another payment is processing",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "payments": {
+          "fields": [
+            "id",
+            "user_id",
+            "state",
+            "created_at",
+            "updated_at",
+            "txn_id",
+            "processor_fee_cents",
+            "correlation_id",
+            "processor",
+            "amount_cents",
+            "payment_address",
+            "payout_period_end_date",
+            "bank_account_id",
+            "amount_cents_in_local_currency",
+            "stripe_connect_account_id",
+            "stripe_transfer_id",
+            "stripe_internal_transfer_id",
+            "currency",
+            "flags",
+            "json_data",
+            "failure_reason",
+            "processor_reversing_payout_id"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "processing",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              1,
+              "failed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              "STRIPE",
+              1000,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              "usd",
+              0,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "ProcessPaymentWorker",
+      "args": [
+        2
+      ],
+      "processed": []
+    }
+  ]
+}

@@ -13,7 +13,7 @@ type ChatMessageListProps = {
   hasOlderMessages: boolean;
   setStickyDate: (date: string | null) => void;
   unreadSeparatorVisibility: boolean;
-  messagesContainerRef?: React.RefObject<HTMLDivElement>;
+  messagesContainerRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 export const ChatMessageList = ({
@@ -162,7 +162,13 @@ export const ChatMessageList = ({
           <UnreadSeparator visible={unreadSeparatorVisibility} />
         )}
         {sortedDates.map((date) => (
-          <div className="flex flex-col gap-4" key={date} ref={(el) => el && dateElementsRef.current.set(date, el)}>
+          <div
+            className="flex flex-col gap-4"
+            key={date}
+            ref={(el) => {
+              if (el) dateElementsRef.current.set(date, el);
+            }}
+          >
             <DateSeparator date={date} />
             {messagesByDate[date]?.map((message) => {
               const isLastReadMessage = lastReadMessageCreatedAt

@@ -162,7 +162,7 @@ const Menubar = ({ moreLabel, ...extraAriaAttrs }: { moreLabel?: string | undefi
 };
 
 const useArrangeMenubarItems = (
-  parentRef: React.RefObject<HTMLDivElement>,
+  parentRef: React.RefObject<HTMLDivElement | null>,
   topLevelMenuItems: MenuItemWithChildren[],
 ) => {
   const currentSeller = useCurrentSeller();
@@ -231,7 +231,7 @@ const MenubarItem = ({
     }
   };
 
-  const closeTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const closeTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const closeAfterDelay = () => {
     closeTimeoutRef.current = setTimeout(() => handleToggleMenu(false), 400);

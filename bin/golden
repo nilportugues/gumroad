@@ -1,0 +1,134 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs a pure Ruby method on fixed inputs and writes the results as a golden-vector fixture
+# for the TypeScript port to be tested against (see nextjs/parity/README.md).
+#
+#   bin/golden <ruby-file> <spec.json> [--out PATH]
+#
+# The spec names the receiver, the GlobalConfig values the file reads at load time, and
+# groups of calls:
+#
+#   {
+#     "receiver": "ObfuscateIds",
+#     "config": { "OBFUSCATE_IDS_CIPHER_KEY": "test-cipher-key" },
+#     "out": "nextjs/src/lib/__fixtures__/obfuscate-ids.golden.json",
+#     "groups": {
+#       "encrypt_unpadded": { "method": "encrypt", "kwargs": { "padding": false }, "inputs": [0, 1] },
+#       "xor": { "method": "xor", "spread": true, "inputs": [["1000", "0011", 4]] }
+#     }
+#   }
+#
+# Output is { group => { input => result } }. A scalar input is its own key; any other input is
+# keyed by its JSON. A call that raises records { "$raises": class, "message": message }, so error
+# paths are vectors too. Integers outside JavaScript's safe range are written as { "$big": "..." }
+# (and may be given that way in inputs) because JSON.parse would round them.
+#
+# Only GlobalConfig and a minimal Rails (env, root, logger) are stubbed. A file that needs
+# ActiveSupport or other gems must list them under "require" and be run with `bundle exec`.
+
+require "json"
+require "logger"
+require "optparse"
+require "pathname"
+
+if Gem::Version.new(RUBY_VERSION) < Gem::Version.new("3.4")
+  abort "bin/golden needs the repo's Ruby (#{File.read(File.expand_path("../.ruby-version", __dir__)).strip}); this is #{RUBY_VERSION}"
+end
+
+module Golden
+  ROOT = Pathname.new(File.expand_path("..", __dir__))
+  MAX_SAFE_INTEGER = (2**53) - 1
+
+  module_function
+
+  def install_stubs(config)
+    stub_config = config.transform_keys(&:to_s)
+    global_config = Module.new
+    global_config.define_singleton_method(:get) do |name, default = nil|
+      stub_config.fetch(name.to_s) { ENV.fetch(name.to_s, default) }
+    end
+    Object.const_set(:GlobalConfig, global_config) unless Object.const_defined?(:GlobalConfig)
+
+    return if Object.const_defined?(:Rails)
+
+    rails = Module.new
+    rails.define_singleton_method(:env) { "test" }
+    rails.define_singleton_method(:root) { ROOT }
+    null_logger = Logger.new(File::NULL)
+    rails.define_singleton_method(:logger) { null_logger }
+    Object.const_set(:Rails, rails)
+  end
+
+  def decode(value)
+    case value
+    when Hash
+      return Integer(value["$big"]) if value.keys == ["$big"]
+
+      value.to_h { |k, v| [k.to_sym, decode(v)] }
+    when Array then value.map { decode(_1) }
+    else value
+    end
+  end
+
+  def encode(value)
+    case value
+    when Integer then value.abs > MAX_SAFE_INTEGER ? { "$big" => value.to_s } : value
+    when Hash then value.to_h { |k, v| [k.to_s, encode(v)] }
+    when Array then value.map { encode(_1) }
+    when Symbol then value.to_s
+    when String, Float, true, false, nil then value
+    else
+      value.respond_to?(:as_json) ? encode(value.as_json) : value.to_s
+    end
+  end
+
+  def key_for(input)
+    input.is_a?(String) ? input : JSON.generate(input)
+  end
+
+  def call(receiver, group, input)
+    args = group["spread"] ? Array(input).map { decode(_1) } : [decode(input)]
+    kwargs = decode(group.fetch("kwargs", {}))
+    # `send`, not `public_send`: private helpers ported on their own are worth vectors too.
+    encode(receiver.send(group.fetch("method"), *args, **kwargs))
+  rescue StandardError => e
+    { "$raises" => e.class.name, "message" => e.message }
+  end
+
+  def run(ruby_file, spec_path, out_override)
+    spec = JSON.parse(File.read(spec_path))
+    install_stubs(spec.fetch("config", {}))
+    Array(spec["require"]).each { require _1 }
+    Array(spec["load"]).each { load ROOT.join(_1).to_s }
+    load File.expand_path(ruby_file)
+    receiver = Object.const_get(spec.fetch("receiver"))
+
+    result = spec.fetch("groups").to_h do |name, group|
+      [name, group.fetch("inputs").to_h { |input| [key_for(input), call(receiver, group, input)] }]
+    end
+
+    json = JSON.pretty_generate(result) + "\n"
+    out = out_override || spec["out"]
+    if out && out != "-"
+      path = Pathname.new(out).absolute? ? Pathname.new(out) : ROOT.join(out)
+      path.dirname.mkpath
+      path.write(json)
+      warn "wrote #{path.relative_path_from(ROOT)}"
+    else
+      $stdout.write(json)
+    end
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  out = nil
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: bin/golden <ruby-file> <spec.json> [--out PATH]"
+    opts.on("--out PATH", "Write here instead of the spec's \"out\" (\"-\" for stdout)") { out = _1 }
+  end
+  parser.parse!
+  abort parser.banner unless ARGV.size == 2
+
+  Golden.run(ARGV[0], ARGV[1], out)
+end

@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "spec": "spec/requests/feature_announcements_unsubscribe_parity_spec.rb",
+  "example": "Feature announcement unsubscribe link POST answers 404 when the token's user no longer exists",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-11",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "refund_policies": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/users/unsubscribe_feature_announcements/eyJ2IjoiMSIsImQiOiJOaW0xNkZLNHlzdk95U3NBV3AwR05wNG5BWHFhLytJUjl5TWh1c0dxcnNNRENLNmxZTkZxOTBiaXphSjRlN0QrMER3cE9OLzdGKzJtT2dPNW0rUE9BY1NIeHR5RzBYNWhPeFdGWFJaRTNrRXhpWjI2MGdFR1dNdUNORVEyUmNsOHAzRmJSNW04dkZhWmhlN1FoUW1MVzNpSmxFSktIdUZTc3JNTmZSSmtiRmJKVm1FRFpCUUpUM21VT0NKcWpVVU9uOElYVlNIK3A1WUlRZlA3eUgvanhpdz0tLWc2ajVWYWZPR2t0TUc4Y2ctLXY3Yjdza3ZNRzRXdFJLdWRmZTNBN0E9PSJ9",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          "host": "app.test.gumroad.com:31337",
+          "x-inertia": "true"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "cache-control": "no-store",
+          "content-type": "text/html",
+          "referrer-policy": "no-referrer",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-robots-tag": "noindex",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "VVOcIhfPuWSokkac73xWoddaPskd4qYsVIfkEv3cWalsfSmJsUayDKGQyetKA7AjtKisz5oFAlpa53l8xLgmZ6zwJqW5z2/lDMVxzex8pSWVZ508+NZ0P8qjKb/rIoTwnVZofq3tl3GgXeoKW4Va6jNsppJAfmGtefIfpsFCQ3lTU+7j8YE2xJS46gB/gne1RpUyN4wBg/buUSdoPCEaTeLj5FlECMbWD/o+xaJ1C4LRGqZqBhnWsAshvrhc28I3cGRlMnf3zVUsdfU2Spt81oAYO/j6tf1Stmef8NQc7UMftOvsvUMpT9dMpe6MjKmtDgukXzlok+kWxe5jnj+seSLgSeMAvrfhJpAHFzkIFC7rXnRvc1/v27TPnhbxvkQrDYhC--cRUaRuEd/gRrM1Iw--KBC1q/U+rel81bDMkoDJGg==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

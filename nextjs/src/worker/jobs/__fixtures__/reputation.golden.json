@@ -1,0 +1,473 @@
+{
+  "now": 1761955200.1230001,
+  "namespace": "rev123",
+  "cases": [
+    {
+      "name": "user not found",
+      "args": [
+        5
+      ],
+      "seed": {},
+      "runs": 1,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache_ops": [],
+      "memcached": {}
+    },
+    {
+      "name": "feature off",
+      "args": [
+        5
+      ],
+      "seed": {},
+      "runs": 1,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache_ops": [],
+      "memcached": {}
+    },
+    {
+      "name": "feature on for the seller, first warm",
+      "args": [
+        5
+      ],
+      "seed": {
+        "seller_reputation_summary": {
+          "actors/User;5": "1"
+        }
+      },
+      "runs": 1,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*) AS `size`, MAX(`links`.`updated_at`) AS timestamp FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "size",
+              "timestamp"
+            ],
+            "rows": [
+              [
+                4,
+                {
+                  "$time": "2025-10-30T08:15:02.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*), SUM(reviews_count), SUM(ratings_of_five_count * 5 + ratings_of_four_count * 4 + ratings_of_three_count * 3 + ratings_of_two_count * 2 + ratings_of_one_count) FROM `links` FORCE INDEX (index_links_on_user_id) STRAIGHT_JOIN product_review_stats ON product_review_stats.link_id = links.id WHERE `links`.`purchase_disabled_at` IS NULL AND `links`.`banned_at` IS NULL AND `links`.`deleted_at` IS NULL AND `links`.`draft` = FALSE AND `links`.`user_id` = 5 AND (links.flags & 65536 != 0) AND `product_review_stats`.`reviews_count` != 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "COUNT(*)",
+              "SUM(reviews_count)",
+              "SUM(weighted)"
+            ],
+            "rows": [
+              [
+                3,
+                {
+                  "$decimal": "40.0"
+                },
+                {
+                  "$decimal": "170.0"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "seller_reputation_summary": {
+          "value": {
+            "actors/User;5": "1"
+          },
+          "ttl": -1
+        },
+        "seller_reputation_summary/v2/snapshot/5": {
+          "value": "{\"aggregate\":[3,40,170],\"signature\":0,\"computed_at\":1761955200}",
+          "ttl": 2592000
+        }
+      },
+      "cache_ops": [
+        [
+          "get",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/0"
+        ],
+        [
+          "set",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/0",
+          1,
+          600,
+          "0408221f0011013cdf07f65341da41ffffffff04085b086908692d6901aa"
+        ]
+      ],
+      "memcached": {
+        "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/0": {
+          "value": "0408221f0011013cdf07f65341da41ffffffff04085b086908692d6901aa",
+          "flags": 1,
+          "exptime": 600
+        }
+      }
+    },
+    {
+      "name": "feature on for everyone, version bumped",
+      "args": [
+        5
+      ],
+      "seed": {
+        "seller_reputation_summary": {
+          "boolean": "true"
+        },
+        "seller_reputation_summary/version/5": "7"
+      },
+      "runs": 1,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*) AS `size`, MAX(`links`.`updated_at`) AS timestamp FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "size",
+              "timestamp"
+            ],
+            "rows": [
+              [
+                4,
+                {
+                  "$time": "2025-10-30T08:15:02.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*), SUM(reviews_count), SUM(ratings_of_five_count * 5 + ratings_of_four_count * 4 + ratings_of_three_count * 3 + ratings_of_two_count * 2 + ratings_of_one_count) FROM `links` FORCE INDEX (index_links_on_user_id) STRAIGHT_JOIN product_review_stats ON product_review_stats.link_id = links.id WHERE `links`.`purchase_disabled_at` IS NULL AND `links`.`banned_at` IS NULL AND `links`.`deleted_at` IS NULL AND `links`.`draft` = FALSE AND `links`.`user_id` = 5 AND (links.flags & 65536 != 0) AND `product_review_stats`.`reviews_count` != 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "COUNT(*)",
+              "SUM(reviews_count)",
+              "SUM(weighted)"
+            ],
+            "rows": [
+              [
+                3,
+                {
+                  "$decimal": "40.0"
+                },
+                {
+                  "$decimal": "170.0"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "seller_reputation_summary": {
+          "value": {
+            "boolean": "true"
+          },
+          "ttl": -1
+        },
+        "seller_reputation_summary/v2/snapshot/5": {
+          "value": "{\"aggregate\":[3,40,170],\"signature\":7,\"computed_at\":1761955200}",
+          "ttl": 2592000
+        },
+        "seller_reputation_summary/version/5": {
+          "value": "7",
+          "ttl": -1
+        }
+      },
+      "cache_ops": [
+        [
+          "get",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/7"
+        ],
+        [
+          "set",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/7",
+          1,
+          600,
+          "0408221f0011013cdf07f65341da41ffffffff04085b086908692d6901aa"
+        ]
+      ],
+      "memcached": {
+        "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-4-20251030081502000000/7": {
+          "value": "0408221f0011013cdf07f65341da41ffffffff04085b086908692d6901aa",
+          "flags": 1,
+          "exptime": 600
+        }
+      }
+    },
+    {
+      "name": "seller without products",
+      "args": [
+        5
+      ],
+      "seed": {
+        "seller_reputation_summary": {
+          "boolean": "true"
+        }
+      },
+      "runs": 1,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*) AS `size`, MAX(`links`.`updated_at`) AS timestamp FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "size",
+              "timestamp"
+            ],
+            "rows": [
+              [
+                0,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*), SUM(reviews_count), SUM(ratings_of_five_count * 5 + ratings_of_four_count * 4 + ratings_of_three_count * 3 + ratings_of_two_count * 2 + ratings_of_one_count) FROM `links` FORCE INDEX (index_links_on_user_id) STRAIGHT_JOIN product_review_stats ON product_review_stats.link_id = links.id WHERE `links`.`purchase_disabled_at` IS NULL AND `links`.`banned_at` IS NULL AND `links`.`deleted_at` IS NULL AND `links`.`draft` = FALSE AND `links`.`user_id` = 5 AND (links.flags & 65536 != 0) AND `product_review_stats`.`reviews_count` != 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "COUNT(*)",
+              "SUM(reviews_count)",
+              "SUM(weighted)"
+            ],
+            "rows": [
+              [
+                0,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "seller_reputation_summary": {
+          "value": {
+            "boolean": "true"
+          },
+          "ttl": -1
+        },
+        "seller_reputation_summary/v2/snapshot/5": {
+          "value": "{\"aggregate\":[0,0,0],\"signature\":0,\"computed_at\":1761955200}",
+          "ttl": 2592000
+        }
+      },
+      "cache_ops": [
+        [
+          "get",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-0/0"
+        ],
+        [
+          "set",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-0/0",
+          1,
+          600,
+          "0408221e0011013cdf07f65341da41ffffffff04085b08690069006900"
+        ]
+      ],
+      "memcached": {
+        "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-0/0": {
+          "value": "0408221e0011013cdf07f65341da41ffffffff04085b08690069006900",
+          "flags": 1,
+          "exptime": 600
+        }
+      }
+    },
+    {
+      "name": "second warm reads the cached aggregate",
+      "args": [
+        5
+      ],
+      "seed": {
+        "seller_reputation_summary": {
+          "boolean": "true"
+        }
+      },
+      "runs": 2,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*) AS `size`, MAX(`links`.`updated_at`) AS timestamp FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "size",
+              "timestamp"
+            ],
+            "rows": [
+              [
+                2,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*), SUM(reviews_count), SUM(ratings_of_five_count * 5 + ratings_of_four_count * 4 + ratings_of_three_count * 3 + ratings_of_two_count * 2 + ratings_of_one_count) FROM `links` FORCE INDEX (index_links_on_user_id) STRAIGHT_JOIN product_review_stats ON product_review_stats.link_id = links.id WHERE `links`.`purchase_disabled_at` IS NULL AND `links`.`banned_at` IS NULL AND `links`.`deleted_at` IS NULL AND `links`.`draft` = FALSE AND `links`.`user_id` = 5 AND (links.flags & 65536 != 0) AND `product_review_stats`.`reviews_count` != 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "COUNT(*)",
+              "SUM(reviews_count)",
+              "SUM(weighted)"
+            ],
+            "rows": [
+              [
+                2,
+                {
+                  "$decimal": "12.0"
+                },
+                {
+                  "$decimal": "50.0"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                5
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT COUNT(*) AS `size`, MAX(`links`.`updated_at`) AS timestamp FROM `links` WHERE `links`.`user_id` = 5",
+          "result": {
+            "fields": [
+              "size",
+              "timestamp"
+            ],
+            "rows": [
+              [
+                2,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "seller_reputation_summary": {
+          "value": {
+            "boolean": "true"
+          },
+          "ttl": -1
+        },
+        "seller_reputation_summary/v2/snapshot/5": {
+          "value": "{\"aggregate\":[2,12,50],\"signature\":0,\"computed_at\":1761955200}",
+          "ttl": 2592000
+        }
+      },
+      "cache_ops": [
+        [
+          "get",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-2-20250101000000000000/0"
+        ],
+        [
+          "set",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-2-20250101000000000000/0",
+          1,
+          600,
+          "0408221e0011013cdf07f65341da41ffffffff04085b08690769116937"
+        ],
+        [
+          "get",
+          "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-2-20250101000000000000/0"
+        ]
+      ],
+      "memcached": {
+        "rev123:seller_reputation_summary/v2/5/links/query-b5c3165dca6310a5782f64dc3402a1f7-2-20250101000000000000/0": {
+          "value": "0408221e0011013cdf07f65341da41ffffffff04085b08690769116937",
+          "flags": 1,
+          "exptime": 600
+        }
+      }
+    }
+  ]
+}

@@ -414,7 +414,7 @@ const FileGroupDownloadAllButton = ({ folderId, files }: { folderId: string; fil
   const downloadInfo = useFilesAndFoldersDownloadInfo();
 
   const [isArchiving, setIsArchiving] = React.useState(false);
-  const archiveFetchIntervalRef = React.useRef<ReturnType<typeof setInterval> | undefined>();
+  const archiveFetchIntervalRef = React.useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   React.useEffect(() => {
     if (isArchiving) {
       archiveFetchIntervalRef.current = setInterval(

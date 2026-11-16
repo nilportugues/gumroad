@@ -1,0 +1,3109 @@
+{
+  "generated_with": {
+    "ruby": "3.4.12",
+    "activerecord": "8.1.3.1",
+    "stripe": "12.5.0"
+  },
+  "now": 1761955200.1230001,
+  "jobs": {
+    "SyncStripeBusinessProfileUrlJob": [
+      {
+        "name": "user missing",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "deleted user",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  {
+                    "$time": "2025-02-01T00:00:00.000000Z"
+                  },
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "no username or external id",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  null,
+                  null,
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "blank username falls back to the external id",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller5.gumroad.com\"}}"
+            ],
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "POST",
+              "path": "/v1/accounts/acct_41",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "x-stripe-client-telemetry": "{\"last_request_metrics\":{\"request_id\":\"req_ok\",\"request_duration_ms\":0}}",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "53"
+              },
+              "body": "business_profile[url]=https%3A%2F%2F48213.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "only a Stripe Connect account",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  40,
+                  5,
+                  "stripe",
+                  "acct_40",
+                  "US",
+                  "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "stale seller subdomain is replaced",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  40,
+                  5,
+                  "stripe",
+                  "acct_40",
+                  "US",
+                  "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ],
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://oldname.gumroad.com\"}}"
+            ],
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "POST",
+              "path": "/v1/accounts/acct_41",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "x-stripe-client-telemetry": "{\"last_request_metrics\":{\"request_id\":\"req_ok\",\"request_duration_ms\":0}}",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "55"
+              },
+              "body": "business_profile[url]=https%3A%2F%2Fseller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "stale subdomain without a scheme",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"  OldName.gumroad.com/x \"}}"
+            ],
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "POST",
+              "path": "/v1/accounts/acct_41",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "x-stripe-client-telemetry": "{\"last_request_metrics\":{\"request_id\":\"req_ok\",\"request_duration_ms\":0}}",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "55"
+              },
+              "body": "business_profile[url]=https%3A%2F%2Fseller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "current subdomain is left alone",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller5.gumroad.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "underscore username maps to a hyphen subdomain",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "my_shop",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"http://my-shop.gumroad.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "custom domain is left alone",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://example.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "nested gumroad host is left alone",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://a.b.gumroad.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "denylisted subdomain is left alone",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://app.gumroad.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "blank url",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":null}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "unparseable url",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://bad host.gumroad.com\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "missing account is logged and skipped",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              404,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such account: 'acct_41'\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": [
+          "SyncStripeBusinessProfileUrlJob: skipped user 5: Stripe::InvalidRequestError: No such account: 'acct_41'"
+        ]
+      },
+      {
+        "name": "inaccessible account is logged and skipped",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"acct_41\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://oldname.gumroad.com\"}}"
+            ],
+            [
+              403,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"No access\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "POST",
+              "path": "/v1/accounts/acct_41",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "x-stripe-client-telemetry": "{\"last_request_metrics\":{\"request_id\":\"req_ok\",\"request_duration_ms\":0}}",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "55"
+              },
+              "body": "business_profile[url]=https%3A%2F%2Fseller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": [
+          "SyncStripeBusinessProfileUrlJob: skipped user 5: Stripe::PermissionError: No access"
+        ]
+      },
+      {
+        "name": "a Stripe outage raises after retries",
+        "args": [
+          5
+        ],
+        "error": {
+          "class": "Stripe::APIError",
+          "message": "Down"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`user_id` = 5 AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_id` = 'stripe'",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "charge_processor_id",
+                "charge_processor_merchant_id",
+                "country",
+                "json_data",
+                "deleted_at",
+                "charge_processor_alive_at",
+                "charge_processor_deleted_at"
+              ],
+              "rows": [
+                [
+                  41,
+                  5,
+                  "stripe",
+                  "acct_41",
+                  "US",
+                  null,
+                  null,
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  null
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              500,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"api_error\",\"message\":\"Down\"}}"
+            ],
+            [
+              500,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"api_error\",\"message\":\"Down\"}}"
+            ],
+            [
+              500,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"api_error\",\"message\":\"Down\"}}"
+            ],
+            [
+              500,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"api_error\",\"message\":\"Down\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "GET",
+              "path": "/v1/accounts/acct_41",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 3,
+        "notifications": [],
+        "log": []
+      }
+    ],
+    "DeleteStripeApplePayDomainWorker": [
+      {
+        "name": "no registration",
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "statements": [
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "registration held by another user",
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "statements": [
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  6,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "deleted on Stripe",
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "statements": [
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  5,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "DELETE FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`id` = 7",
+            "result": {
+              "affected": 1
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_7\",\"object\":\"apple_pay_domain\",\"deleted\":true}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "DELETE",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "Stripe did not delete it",
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "statements": [
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  5,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_7\",\"object\":\"apple_pay_domain\",\"deleted\":false}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "DELETE",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "already gone on Stripe",
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "statements": [
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  5,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "DELETE FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`id` = 7",
+            "result": {
+              "affected": 1
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              404,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such domain\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "DELETE",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      }
+    ],
+    "CreateStripeApplePayDomainWorker": [
+      {
+        "name": "user missing",
+        "args": [
+          5
+        ],
+        "error": {
+          "class": "ActiveRecord::RecordNotFound",
+          "message": "Couldn't find User with 'id'=5"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [],
+              "rows": []
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "no username or external id",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  null,
+                  null,
+                  null,
+                  0
+                ]
+              ]
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "already registered to this user",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  5,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [],
+          "requests": []
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "registers a new domain",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `stripe_apple_pay_domains` (`user_id`, `domain`, `stripe_id`, `created_at`, `updated_at`) VALUES (5, 'seller5.gumroad.com', 'apwc_9', '2025-11-01 00:00:00.123000', '2025-11-01 00:00:00.123000')",
+            "result": {
+              "affected": 1,
+              "last_id": 1001
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_9\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller5.gumroad.com\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/v1/apple_pay/domains",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "31"
+              },
+              "body": "domain_name=seller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "registers an explicit domain",
+        "args": [
+          5,
+          "shop.example.com"
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'shop.example.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `stripe_apple_pay_domains` (`user_id`, `domain`, `stripe_id`, `created_at`, `updated_at`) VALUES (5, 'shop.example.com', 'apwc_9', '2025-11-01 00:00:00.123000', '2025-11-01 00:00:00.123000')",
+            "result": {
+              "affected": 1,
+              "last_id": 1001
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_9\",\"object\":\"apple_pay_domain\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/v1/apple_pay/domains",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "28"
+              },
+              "body": "domain_name=shop.example.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "takes over a registration Stripe still has",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  6,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "UPDATE `stripe_apple_pay_domains` SET `stripe_apple_pay_domains`.`user_id` = 5, `stripe_apple_pay_domains`.`updated_at` = '2025-11-01 00:00:00.123000' WHERE `stripe_apple_pay_domains`.`id` = 7",
+            "result": {
+              "affected": 1
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_7\",\"object\":\"apple_pay_domain\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "replaces a registration Stripe lost",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  6,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "DELETE FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`id` = 7",
+            "result": {
+              "affected": 1
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `stripe_apple_pay_domains` (`user_id`, `domain`, `stripe_id`, `created_at`, `updated_at`) VALUES (5, 'seller5.gumroad.com', 'apwc_9', '2025-11-01 00:00:00.123000', '2025-11-01 00:00:00.123000')",
+            "result": {
+              "affected": 1,
+              "last_id": 1001
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              404,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such apple pay domain\"}}"
+            ],
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_9\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller5.gumroad.com\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            },
+            {
+              "method": "POST",
+              "path": "/v1/apple_pay/domains",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "31"
+              },
+              "body": "domain_name=seller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "a lookup error other than missing raises",
+        "args": [
+          5
+        ],
+        "error": {
+          "class": "Stripe::InvalidRequestError",
+          "message": "Bad id"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  7,
+                  6,
+                  "seller5.gumroad.com",
+                  "apwc_7",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "ROLLBACK",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              400,
+              {
+                "Request-Id": "req_err",
+                "Content-Type": "application/json"
+              },
+              "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"parameter_invalid\",\"message\":\"Bad id\"}}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/v1/apple_pay/domains/apwc_7",
+              "query": "",
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*"
+              },
+              "body": null
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "a concurrent insert of the same domain is claimed",
+        "args": [
+          5
+        ],
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `stripe_apple_pay_domains` (`user_id`, `domain`, `stripe_id`, `created_at`, `updated_at`) VALUES (5, 'seller5.gumroad.com', 'apwc_9', '2025-11-01 00:00:00.123000', '2025-11-01 00:00:00.123000')",
+            "result": {
+              "error": {
+                "number": 1062,
+                "message": "Duplicate entry for key 'stripe_apple_pay_domains'"
+              }
+            }
+          },
+          {
+            "sql": "ROLLBACK",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": [
+                [
+                  8,
+                  5,
+                  "seller5.gumroad.com",
+                  "apwc_8",
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  },
+                  {
+                    "$time": "2025-01-01T00:00:00.000000Z"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_9\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller5.gumroad.com\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/v1/apple_pay/domains",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "31"
+              },
+              "body": "domain_name=seller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      },
+      {
+        "name": "a concurrent insert that vanished raises",
+        "args": [
+          5
+        ],
+        "error": {
+          "class": "ActiveRecord::RecordNotUnique",
+          "message": "FakeMysqlFailure: Duplicate entry for key 'stripe_apple_pay_domains'"
+        },
+        "statements": [
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 5 LIMIT 1",
+            "result": {
+              "fields": [
+                "id",
+                "username",
+                "external_id",
+                "deleted_at",
+                "flags"
+              ],
+              "rows": [
+                [
+                  5,
+                  "seller5",
+                  "48213",
+                  null,
+                  0
+                ]
+              ]
+            }
+          },
+          {
+            "sql": "INSERT INTO `stripe_apple_pay_domains` (`user_id`, `domain`, `stripe_id`, `created_at`, `updated_at`) VALUES (5, 'seller5.gumroad.com', 'apwc_9', '2025-11-01 00:00:00.123000', '2025-11-01 00:00:00.123000')",
+            "result": {
+              "error": {
+                "number": 1062,
+                "message": "Duplicate entry for key 'stripe_apple_pay_domains'"
+              }
+            }
+          },
+          {
+            "sql": "ROLLBACK",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "BEGIN",
+            "result": {
+              "affected": 0
+            }
+          },
+          {
+            "sql": "SELECT `stripe_apple_pay_domains`.* FROM `stripe_apple_pay_domains` WHERE `stripe_apple_pay_domains`.`domain` = 'seller5.gumroad.com' LIMIT 1 FOR UPDATE",
+            "result": {
+              "fields": [
+                "id",
+                "user_id",
+                "domain",
+                "stripe_id",
+                "created_at",
+                "updated_at"
+              ],
+              "rows": []
+            }
+          },
+          {
+            "sql": "COMMIT",
+            "result": {
+              "affected": 0
+            }
+          }
+        ],
+        "redis": {},
+        "stripe": {
+          "responses": [
+            [
+              200,
+              {
+                "Request-Id": "req_ok",
+                "Content-Type": "application/json"
+              },
+              "{\"id\":\"apwc_9\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller5.gumroad.com\"}"
+            ]
+          ],
+          "requests": [
+            {
+              "method": "POST",
+              "path": "/v1/apple_pay/domains",
+              "query": null,
+              "headers": {
+                "authorization": "Bearer sk_test_golden",
+                "content-type": "application/x-www-form-urlencoded",
+                "idempotency-key": "00000000-0000-4000-8000-000000000001",
+                "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+                "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+                "accept": "*/*",
+                "content-length": "31"
+              },
+              "body": "domain_name=seller5.gumroad.com"
+            }
+          ]
+        },
+        "retries": 0,
+        "notifications": [],
+        "log": []
+      }
+    ]
+  },
+  "retries_exhausted": {
+    "CreateStripeApplePayDomainWorker": [
+      {
+        "args": [
+          5,
+          "seller5.gumroad.com"
+        ],
+        "notifications": [
+          [
+            "CreateStripeApplePayDomainWorker exhausted Sidekiq retries for user 5 (domain seller5.gumroad.com). Inspect the dead job for the error and the registration state before retrying.",
+            {}
+          ]
+        ]
+      },
+      {
+        "args": [
+          5
+        ],
+        "notifications": [
+          [
+            "CreateStripeApplePayDomainWorker exhausted Sidekiq retries for user 5 (domain unknown). Inspect the dead job for the error and the registration state before retrying.",
+            {}
+          ]
+        ]
+      }
+    ]
+  }
+}

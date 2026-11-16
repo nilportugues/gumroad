@@ -1,0 +1,1736 @@
+{
+  "generated_with": {
+    "ruby": "3.4.2",
+    "sidekiq": "7.3.4",
+    "sidekiq_unique_jobs": "8.0.10"
+  },
+  "now": 1761955200.123456,
+  "cases": [
+    {
+      "name": "while_executing runs and releases its :RUN lock",
+      "jobs": [
+        [
+          "a",
+          "SendChargeReceiptJob",
+          [
+            7,
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "snapshot"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[7,1],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "a returned"
+      ],
+      "inside": {
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        },
+        "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing with lock_ttl",
+      "jobs": [
+        [
+          "a",
+          "SyncStripeBusinessProfileUrlJob",
+          [
+            3
+          ]
+        ]
+      ],
+      "body": {
+        "a": "snapshot"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":600,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[3],\"class\":\"SyncStripeBusinessProfileUrlJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:c07283c4e77f83253447e150c097faa6:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "a returned"
+      ],
+      "inside": {
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "low"
+            ],
+            "expires": false
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing releases the lock when the job raises",
+      "jobs": [
+        [
+          "a",
+          "SendChargeReceiptJob",
+          [
+            7,
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "raise"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[7,1],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "a raised ArgumentError: boom from a"
+      ],
+      "inside": {},
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        },
+        "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing conflict with on_conflict server: raise",
+      "jobs": [
+        [
+          "a",
+          "SendChargeReceiptJob",
+          [
+            7,
+            1
+          ]
+        ],
+        [
+          "b",
+          "SendChargeReceiptJob",
+          [
+            7,
+            2
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[7,1],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[7,2],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "b raised SidekiqUniqueJobs::Conflict: Item with the key: uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN is already scheduled or processing",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Limit exceeded",
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        },
+        "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing conflict with on_conflict server: reschedule",
+      "jobs": [
+        [
+          "a",
+          "SyncStripeBusinessProfileUrlJob",
+          [
+            3
+          ]
+        ],
+        [
+          "b",
+          "SyncStripeBusinessProfileUrlJob",
+          [
+            3
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":600,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[3],\"class\":\"SyncStripeBusinessProfileUrlJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:c07283c4e77f83253447e150c097faa6:RUN\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":600,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[3],\"class\":\"SyncStripeBusinessProfileUrlJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:c07283c4e77f83253447e150c097faa6:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "b returned",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "low"
+            ],
+            "expires": false
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "low"
+            ],
+            "expires": false
+          },
+          "schedule": {
+            "type": "zset",
+            "value": [
+              [
+                "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":605,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[3],\"class\":\"SyncStripeBusinessProfileUrlJob\",\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:c07283c4e77f83253447e150c097faa6:RUN\"}",
+                1761955205.123456
+              ]
+            ],
+            "expires": false
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Limit exceeded",
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":605,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[3],\"class\":\"SyncStripeBusinessProfileUrlJob\",\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:c07283c4e77f83253447e150c097faa6:RUN\"}",
+              1761955205.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:c07283c4e77f83253447e150c097faa6:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing reschedule honours schedule_in",
+      "jobs": [
+        [
+          "a",
+          "RefreshUserProductsRecommendationEligibilityJob",
+          [
+            9
+          ]
+        ],
+        [
+          "b",
+          "RefreshUserProductsRecommendationEligibilityJob",
+          [
+            9
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":21600,\"schedule_in\":60,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[9],\"class\":\"RefreshUserProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":21600,\"schedule_in\":60,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[9],\"class\":\"RefreshUserProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "b returned",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "low"
+            ],
+            "expires": false
+          },
+          "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "low"
+            ],
+            "expires": false
+          },
+          "schedule": {
+            "type": "zset",
+            "value": [
+              [
+                "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":21660,\"schedule_in\":60,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[9],\"class\":\"RefreshUserProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN\"}",
+                1761955260.123456
+              ]
+            ],
+            "expires": false
+          },
+          "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Limit exceeded",
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":0,\"lock_ttl\":21660,\"schedule_in\":60,\"on_conflict\":{\"server\":\"reschedule\"},\"args\":[9],\"class\":\"RefreshUserProductsRecommendationEligibilityJob\",\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN\"}",
+              1761955260.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:5ec51e7b9d2008aabde5ae48bc2b2480:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing conflict with on_conflict: log",
+      "jobs": [
+        [
+          "a",
+          "WhileExecutingLogJob",
+          [
+            1
+          ]
+        ],
+        [
+          "b",
+          "WhileExecutingLogJob",
+          [
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":25,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"while_executing\",\"on_conflict\":\"log\",\"args\":[1],\"class\":\"WhileExecutingLogJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":25,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"while_executing\",\"on_conflict\":\"log\",\"args\":[1],\"class\":\"WhileExecutingLogJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "b returned",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "default"
+            ],
+            "expires": false
+          },
+          "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "default"
+            ],
+            "expires": false
+          },
+          "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Limit exceeded",
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:2290fa6a510453459a25c1bbcf2ae1ec:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Queued",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "while_executing jobs with different lock args run together",
+      "jobs": [
+        [
+          "a",
+          "SendChargeReceiptJob",
+          [
+            7,
+            1
+          ]
+        ],
+        [
+          "b",
+          "SendChargeReceiptJob",
+          [
+            8,
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b",
+        "b": "snapshot"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[7,1],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":5,\"queue\":\"critical\",\"backtrace\":true,\"lock\":\"while_executing\",\"lock_timeout\":2,\"unique_across_queues\":true,\"on_conflict\":{\"server\":\"raise\"},\"args\":[8,1],\"class\":\"SendChargeReceiptJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[8],\"lock_digest\":\"uniquejobs:3c7760ceb58495351defe352c7834edb:RUN\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        }
+      },
+      "events": [
+        "a ran",
+        "b ran",
+        "b returned",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:3c7760ceb58495351defe352c7834edb:RUN": {
+            "type": "string",
+            "value": "000000000000000000000002",
+            "expires": false
+          },
+          "uniquejobs:3c7760ceb58495351defe352c7834edb:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000002": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Locked",
+              "Queued",
+              "Queued"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:3c7760ceb58495351defe352c7834edb:RUN",
+                1761955200.123456
+              ],
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "critical"
+            ],
+            "expires": false
+          },
+          "uniquejobs:3c7760ceb58495351defe352c7834edb:RUN:QUEUED": {
+            "type": "list",
+            "value": [
+              "1"
+            ],
+            "expires": true
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": false
+          },
+          "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Locked",
+              "Queued",
+              "Queued",
+              "Unlocked"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "critical"
+          ],
+          "expires": false
+        },
+        "uniquejobs:3c7760ceb58495351defe352c7834edb:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:91d99c3b0caf88db96a05e924e62dc26:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Unlocked",
+            "Unlocked"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "until_and_while_executing swaps the client lock for the :RUN lock",
+      "jobs": [
+        [
+          "a",
+          "UntilAndWhileExecutingJob",
+          [
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "snapshot"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":2,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_and_while_executing\",\"lock_ttl\":300,\"on_conflict\":{\"client\":\"log\",\"server\":\"raise\"},\"args\":[1],\"class\":\"UntilAndWhileExecutingJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:f6da1f0face19c4763fbb2902267d52d\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1761955200.123456"
+          },
+          "expires": true
+        }
+      },
+      "events": [
+        "a ran",
+        "a returned"
+      ],
+      "inside": {
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "default"
+            ],
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Locked",
+              "Queued",
+              "Queued",
+              "Unlocked"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:QUEUED": {
+            "type": "list",
+            "value": [
+              "1"
+            ],
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Unlocked",
+            "Unlocked"
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "until_and_while_executing relocks the client lock when the job raises",
+      "jobs": [
+        [
+          "a",
+          "UntilAndWhileExecutingJob",
+          [
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "raise"
+      },
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":2,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_and_while_executing\",\"lock_ttl\":300,\"on_conflict\":{\"client\":\"log\",\"server\":\"raise\"},\"args\":[1],\"class\":\"UntilAndWhileExecutingJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:f6da1f0face19c4763fbb2902267d52d\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1761955200.123456"
+          },
+          "expires": true
+        }
+      },
+      "events": [
+        "a ran",
+        "a raised ArgumentError: boom from a"
+      ],
+      "inside": {},
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Unlocked",
+            "Unlocked"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:PRIMED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "until_and_while_executing skips the job when it no longer holds the client lock",
+      "jobs": [
+        [
+          "a",
+          "UntilAndWhileExecutingJob",
+          [
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "snapshot"
+      },
+      "before_run": "flush",
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":2,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_and_while_executing\",\"lock_ttl\":300,\"on_conflict\":{\"client\":\"log\",\"server\":\"raise\"},\"args\":[1],\"class\":\"UntilAndWhileExecutingJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:f6da1f0face19c4763fbb2902267d52d\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {},
+      "events": [
+        "a returned"
+      ],
+      "inside": {},
+      "after": {}
+    },
+    {
+      "name": "until_and_while_executing runtime conflict raises and relocks",
+      "jobs": [
+        [
+          "a",
+          "UntilAndWhileExecutingJob",
+          [
+            1
+          ]
+        ],
+        [
+          "b",
+          "UntilAndWhileExecutingJob",
+          [
+            1
+          ]
+        ]
+      ],
+      "body": {
+        "a": "run b"
+      },
+      "push_b_inside_a": true,
+      "pushed": {
+        "a": {
+          "jid": "000000000000000000000001",
+          "payload": "{\"retry\":2,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_and_while_executing\",\"lock_ttl\":300,\"on_conflict\":{\"client\":\"log\",\"server\":\"raise\"},\"args\":[1],\"class\":\"UntilAndWhileExecutingJob\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:f6da1f0face19c4763fbb2902267d52d\",\"enqueued_at\":1761955200.123456}"
+        },
+        "b": {
+          "jid": "000000000000000000000002",
+          "payload": "{\"retry\":2,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_and_while_executing\",\"lock_ttl\":300,\"on_conflict\":{\"client\":\"log\",\"server\":\"raise\"},\"args\":[1],\"class\":\"UntilAndWhileExecutingJob\",\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:f6da1f0face19c4763fbb2902267d52d\",\"enqueued_at\":1761955200.123456}"
+        }
+      },
+      "before": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1761955200.123456"
+          },
+          "expires": true
+        }
+      },
+      "events": [
+        "a ran",
+        "b raised SidekiqUniqueJobs::Conflict: Item with the key: uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN is already scheduled or processing",
+        "a returned"
+      ],
+      "inside": {
+        "a before b": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "default"
+            ],
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Locked",
+              "Locked",
+              "Locked",
+              "Queued",
+              "Queued",
+              "Queued",
+              "Unlocked"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+                1761955200.123456
+              ],
+              [
+                "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+            "type": "string",
+            "value": "000000000000000000000002",
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000002": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:PRIMED": {
+            "type": "list",
+            "value": [
+              "1"
+            ],
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          }
+        },
+        "a": {
+          "queues": {
+            "type": "set",
+            "value": [
+              "default"
+            ],
+            "expires": false
+          },
+          "uniquejobs:changelog": {
+            "type": "zset",
+            "messages": [
+              "Limit exceeded",
+              "Locked",
+              "Locked",
+              "Locked",
+              "Queued",
+              "Queued",
+              "Queued",
+              "Unlocked",
+              "Unlocked"
+            ],
+            "expires": false
+          },
+          "uniquejobs:digests": {
+            "type": "zset",
+            "value": [
+              [
+                "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+                1761955200.123456
+              ],
+              [
+                "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN",
+                1761955200.123456
+              ]
+            ],
+            "expires": false
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+            "type": "string",
+            "value": "000000000000000000000002",
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000002": "1761955200.123456"
+            },
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:PRIMED": {
+            "type": "list",
+            "value": [
+              "1",
+              "1"
+            ],
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN": {
+            "type": "string",
+            "value": "000000000000000000000001",
+            "expires": true
+          },
+          "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:LOCKED": {
+            "type": "hash",
+            "value": {
+              "000000000000000000000001": "1761955200.123456"
+            },
+            "expires": true
+          }
+        }
+      },
+      "after": {
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued",
+            "Unlocked",
+            "Unlocked",
+            "Unlocked"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:f6da1f0face19c4763fbb2902267d52d",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:PRIMED": {
+          "type": "list",
+          "value": [
+            "1",
+            "1"
+          ],
+          "expires": true
+        },
+        "uniquejobs:f6da1f0face19c4763fbb2902267d52d:RUN:QUEUED": {
+          "type": "list",
+          "value": [
+            "1"
+          ],
+          "expires": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "spec": "spec/requests/public_files_parity_spec.rb",
+  "example": "Public files GET /js/gumroad-analytics serves the script without a product when the token is missing",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "custom_domains": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "domain": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "ssl_certificate_issued_at": "datetime",
+              "deleted_at": "datetime",
+              "state": "varchar",
+              "failed_verification_attempts_count": "int",
+              "product_id": "bigint",
+              "routable": "tinyint",
+              "routability_checked_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "domain": "hickle.reichert-macgyver.example",
+                "created_at": "<now-11m>",
+                "updated_at": "<now-11m>",
+                "ssl_certificate_issued_at": null,
+                "deleted_at": null,
+                "state": "unverified",
+                "failed_verification_attempts_count": 0,
+                "product_id": null,
+                "routable": null,
+                "routability_checked_at": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "custom_domains": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/js/gumroad-analytics",
+        "headers": {
+          "accept": "*/*",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/javascript; charset=utf-8",
+          "vary": "Accept, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "zin8ih_rjqsgmIO76XXAkkqExywS0W4xDwK2pCr-hMyz5buKjOK8Rxz84w-5f1zNVtiFfXFKAe4zjuBkH9oZjQ",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "EFFI9DKJwBkb15cA2epzhhulfLiivd7BjQwraluCm6LODS95ofD0EJrMeR8/oiVhPXbAajri45zE9AB58fJRozZlSXQ7amExYGGyiWXhk5b7ofenobOMq3U9W+hGKjnuZ7dDgrgBThpduJ/U5TamLFmvu0JMmb88F4CzMACoQJlvpfEt4Bt9XU5wIpHfqfIYlhIbnxWi2z/7AVbenbBCjEUxOvTH0D1JQkxCY6uNshoelriK7Ni65BtNt7ADLqn+bcWbd9wSYqIBP67pIXwMrtfPYSpq75aGMO1xxzCB5wztmfo2v8Eog24mbyVSdaaT1nkyHdecMJyMamrScgTCw+jSMas4jSchz5fP5ObxsOgrbLUpTv5Zh46xLlY1+KAdlqDi--PjhZv0wsufgfOG4O--nqqCztiAY5/Sq5Q9g8j7YA==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "body": "(function () {\n  var script = document.currentScript;\n  if (!script || !script.src) return;\n\n  var id = \"\";\n  var token = \"\";\n  var origin;\n  try {\n    var src = new URL(script.src);\n    origin = src.origin;\n    if (!id) id = script.getAttribute(\"data-gumroad-product\") || src.searchParams.get(\"id\");\n  } catch (e) {\n    return;\n  }\n  if (!id || !token || !origin) return;\n\n  var params = new URLSearchParams();\n  params.set(\"analytics_token\", token);\n\n  var img = new Image();\n  img.referrerPolicy = \"origin\";\n  img.src = origin + \"/links/\" + encodeURIComponent(id) + \"/increment_views.gif?\" + params.toString();\n})();\n"
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

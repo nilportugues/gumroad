@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "spec": "spec/requests/api/v2/mcp_register_parity_spec.rb",
+  "example": "MCP dynamic client registration refuses plain http away from localhost",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-11",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/claude/v1/oauth2/register",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/json",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"redirect_uris\":[\"http://client.example.com/callback\"]}"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "s7xtWm8zqEx6Acu-xfysZ66Fch-VOMKbehr_MUyxw9DyzGtVeofmf-HEAa5vlvxFXNNah3FCWWnNKclN5CRNDA",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "KQMtETtQf983A2KVYxR0DQovTM33pyMLTkFk6SfnlCjhYMlKxgtiPoZoqSKFHXBXRTK7qCWWiHQ9LcdbsW0QN9aQmApPM7lHnshKwyEJGVPsEKyOEpHukUmR2qLyiZCIcqcnfwgmSwi9E8jZhKUo5qrZ+J9uVj0CArR56cPIbJ/dkbrINSNZAP5j6o5JdLU2MdXdzma6MwRhhD57AaQOTHkkGdFIiezGR93CeTvaPH/ehzpqpqn8J74hp34q7Pz5WTM01c9LC8TeuIWzdPlPzcWqeSpGDxqAjRF8h2Y2FbzANeY17nvoHgkZIWmRVZPzxnyFkpw+cFIkBWcWa+Mi5wHI30xZ5pdPcQxcMlLBSRH6GXFJ70PRK1CgE7gzpsJttCsP--aLlhknbGA4YtaK7i--pDE5zk80f/j4AQrXtmUUkA==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "error": "invalid_client_metadata",
+          "error_description": "redirect_uris must be https (or http on localhost)"
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

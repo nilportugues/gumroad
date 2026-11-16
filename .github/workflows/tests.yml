@@ -263,6 +263,8 @@ jobs:
         env:
           RAILS_ENV: test
       - run: npm run typecheck
+      # Fails when db/schema.rb changed without regenerating nextjs/prisma (WS-00).
+      - run: npm run prisma:check-drift --prefix nextjs
       # Downloads the files test_relevant_runner installs (bin/ci-test-packages), on
       # the same runner type, so its shards download nothing.
       - name: Restore the test packages

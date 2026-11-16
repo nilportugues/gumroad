@@ -1,0 +1,1604 @@
+{
+  "now": 1762000245.1230001,
+  "cases": [
+    {
+      "name": "no balance and no sales",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {
+        "aggregations": {
+          "price_cents_total": {
+            "value": 0
+          },
+          "fee_cents_total": {
+            "value": 0
+          },
+          "amount_refunded_cents_total": {
+            "value": 0
+          },
+          "fee_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          }
+        }
+      },
+      "return": {
+        "balance": 0,
+        "last_seven_days_sales_total": 0,
+        "last_28_days_sales_total": 0,
+        "sales_cents_total": 0
+      }
+    },
+    {
+      "name": "an unpaid balance",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                5500
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {
+        "aggregations": {
+          "price_cents_total": {
+            "value": 0
+          },
+          "fee_cents_total": {
+            "value": 0
+          },
+          "amount_refunded_cents_total": {
+            "value": 0
+          },
+          "fee_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          }
+        }
+      },
+      "return": {
+        "balance": 5500,
+        "last_seven_days_sales_total": 0,
+        "last_28_days_sales_total": 0,
+        "sales_cents_total": 0
+      }
+    },
+    {
+      "name": "sales as a seller",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                4000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {
+        "aggregations": {
+          "price_cents_total": {
+            "value": 120000
+          },
+          "fee_cents_total": {
+            "value": 0
+          },
+          "amount_refunded_cents_total": {
+            "value": 20000
+          },
+          "fee_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          }
+        }
+      },
+      "return": {
+        "balance": 4000,
+        "last_seven_days_sales_total": 100000,
+        "last_28_days_sales_total": 100000,
+        "sales_cents_total": 100000
+      }
+    },
+    {
+      "name": "sales as an affiliate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {
+        "aggregations": {
+          "price_cents_total": {
+            "value": 0
+          },
+          "fee_cents_total": {
+            "value": 0
+          },
+          "amount_refunded_cents_total": {
+            "value": 0
+          },
+          "fee_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 7000
+            }
+          },
+          "affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 1500
+            }
+          },
+          "affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          }
+        }
+      },
+      "return": {
+        "balance": 0,
+        "last_seven_days_sales_total": 5500,
+        "last_28_days_sales_total": 5500,
+        "sales_cents_total": 5500
+      }
+    },
+    {
+      "name": "sales as a seller and an affiliate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-04T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        },
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {
+        "aggregations": {
+          "price_cents_total": {
+            "value": 50000
+          },
+          "fee_cents_total": {
+            "value": 0
+          },
+          "amount_refunded_cents_total": {
+            "value": 0
+          },
+          "fee_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_cents_total": {
+            "value": 0
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_total": {
+            "value": 0
+          },
+          "affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 7000
+            }
+          },
+          "affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 1500
+            }
+          },
+          "affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_amount_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          },
+          "direct_affiliate_credit_fee_partially_refunded_cents_own": {
+            "total": {
+              "value": 0
+            }
+          }
+        }
+      },
+      "return": {
+        "balance": 0,
+        "last_seven_days_sales_total": 55500,
+        "last_28_days_sales_total": 55500,
+        "sales_cents_total": 55500
+      }
+    },
+    {
+      "name": "a search answered without aggregations",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'value' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "user1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "user1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT SUM(`balances`.`amount_cents`) FROM `balances` WHERE `balances`.`user_id` = 1 AND `balances`.`state` = 'unpaid'",
+          "result": {
+            "fields": [
+              "SUM(`balances`.`amount_cents`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "es": [
+        {
+          "method": "POST",
+          "path": "/purchases/_search",
+          "query": null,
+          "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}},{\"range\":{\"created_at\":{\"gt\":\"2025-10-25T12:30:45Z\"}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}"
+        }
+      ],
+      "case_now": 1762000245.1230001,
+      "es_body": {},
+      "return": null
+    }
+  ]
+}

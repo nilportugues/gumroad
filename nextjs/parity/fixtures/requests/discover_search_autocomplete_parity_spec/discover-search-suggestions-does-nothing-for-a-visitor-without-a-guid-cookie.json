@@ -1,0 +1,571 @@
+{
+  "version": 1,
+  "spec": "spec/requests/discover_search_autocomplete_parity_spec.rb",
+  "example": "Discover search suggestions does nothing for a visitor without a guid cookie",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-11",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "discover_search_suggestions": {
+            "columns": {
+              "id": "bigint",
+              "discover_search_id": "bigint",
+              "deleted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "discover_search_id": 1,
+                "deleted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "discover_searches": {
+            "columns": {
+              "id": "bigint",
+              "query": "varchar",
+              "taxonomy_id": "bigint",
+              "user_id": "bigint",
+              "ip_address": "varchar",
+              "browser_guid": "varchar",
+              "autocomplete": "tinyint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "clicked_resource_type": "varchar",
+              "clicked_resource_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "query": "font bundles",
+                "taxonomy_id": null,
+                "user_id": null,
+                "ip_address": "127.0.0.1",
+                "browser_guid": "parity-browser-guid",
+                "autocomplete": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "clicked_resource_type": null,
+                "clicked_resource_id": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "discover_search_suggestions": 2,
+          "discover_searches": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "test.gumroad.com"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "u5Zr2Wh5ZcciUVilTXIK7Ao8OWqRANWq9gZS8nooW-S213byv2eFHNsdpjkxBK713ZkjT3OsYfsVmdZs-Bnxdw",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "h109GTxvNvVAl8N4cdEnx64T776m0MIL36qZRqKP1YcXLkvw2PXzmMIQiZsQyy88Iu6N/BKH01WXD0eQp5A9nx/bcfWutSu8ZJ8w8oPsQd93+xE8pAo+HTa3Gv3/QGA/wwvYw/WandUiUkfPnwPmf7OshLIS130KizwDJz8MDXRpPZXMchejAIjDj0i6FClVwXwkOrM+zOi0JgipB/+gqj3t/tAvNJvKDl5HPuGf1C8vFAkRt/1yjJn+/OGSEcE524Ljika2Bw/epBxhJoQDsLHlXfBE1Zo/plNx3/VB60RQYG/pi3LhG6SrIP39/wI92qt8PMG4Uewxs/FNu5GI/WufC3EN2OujdDCT6eHMWIMUuSGxnyRdLeiW8ZTiyAtHWC3V--UUPHkQxF+3wLpKW6--cxb/XCyUetSOGUO0GtRIWg==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://test.gumroad.com/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": null,
+            "current_seller": null,
+            "csp_nonce": "TnXIKyO5n2sRc4ZzsTv9jlESS1aJBSFAFBbfN+XCNZ0=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "tjRid7dqYS8tQkN4ubs58GzT3JNWYSmNQsGBIBIKYOG7dX9cYHSB9NQOveTFzZ3pu3bGtrTNndyhXgW-kDvKcg",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "Qbnz8I2KcIXuMAhhcQV3IlNwHjlNKgtMtJIHlWlAgaJM-O7bWpSQXhd89v0Nc9M7hNUEHK-Gvx1XDYML63ErMQ"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    },
+    {
+      "seed": {
+        "tables": {
+          "discover_search_suggestions": {
+            "columns": {
+              "id": "bigint",
+              "discover_search_id": "bigint",
+              "deleted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "discover_search_id": 1,
+                "deleted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "discover_searches": {
+            "columns": {
+              "id": "bigint",
+              "query": "varchar",
+              "taxonomy_id": "bigint",
+              "user_id": "bigint",
+              "ip_address": "varchar",
+              "browser_guid": "varchar",
+              "autocomplete": "tinyint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "clicked_resource_type": "varchar",
+              "clicked_resource_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "query": "font bundles",
+                "taxonomy_id": null,
+                "user_id": null,
+                "ip_address": "127.0.0.1",
+                "browser_guid": "parity-browser-guid",
+                "autocomplete": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "clicked_resource_type": null,
+                "clicked_resource_id": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "discover_search_suggestions": 2,
+          "discover_searches": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "DELETE",
+        "path": "/discover_search_autocomplete",
+        "headers": {
+          "accept": "application/json",
+          "content-type": "application/json",
+          "host": "test.gumroad.com",
+          "x-csrf-token": "tjRid7dqYS8tQkN4ubs58GzT3JNWYSmNQsGBIBIKYOG7dX9cYHSB9NQOveTFzZ3pu3bGtrTNndyhXgW-kDvKcg"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "u5Zr2Wh5ZcciUVilTXIK7Ao8OWqRANWq9gZS8nooW-S213byv2eFHNsdpjkxBK713ZkjT3OsYfsVmdZs-Bnxdw",
+          "_gumroad_app_session_test": "h109GTxvNvVAl8N4cdEnx64T776m0MIL36qZRqKP1YcXLkvw2PXzmMIQiZsQyy88Iu6N/BKH01WXD0eQp5A9nx/bcfWutSu8ZJ8w8oPsQd93+xE8pAo+HTa3Gv3/QGA/wwvYw/WandUiUkfPnwPmf7OshLIS130KizwDJz8MDXRpPZXMchejAIjDj0i6FClVwXwkOrM+zOi0JgipB/+gqj3t/tAvNJvKDl5HPuGf1C8vFAkRt/1yjJn+/OGSEcE524Ljika2Bw/epBxhJoQDsLHlXfBE1Zo/plNx3/VB60RQYG/pi3LhG6SrIP39/wI92qt8PMG4Uewxs/FNu5GI/WufC3EN2OujdDCT6eHMWIMUuSGxnyRdLeiW8ZTiyAtHWC3V--UUPHkQxF+3wLpKW6--cxb/XCyUetSOGUO0GtRIWg==",
+          "_gumroad_guid": "3bb2cb0f-b5b4-4635-abdd-039545ca5684"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{\"query\":\"font bundles\"}"
+      },
+      "response": {
+        "status": 204,
+        "headers": {
+          "cache-control": "no-cache",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "IiWpxV4sGL_IKMU_3BVsiMp16b_qOXJWZBNSacI3HzEvZLTuiTL4ZDFkO6OgY8iRHdDzmgiVxgeHjNb3QAa1og",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "uVXXJbfK5NUDxaECuk3PXm71Qn8TIedftA0JfW90OhB16beZvMFrELOvIQyq9fDNIjHqjfLxDb8DfywaqA4WCq2QOYGEfiuyZNI+1P7IQvlEsqqGmPltvUWFUjRiJEbuqUBhuUO3YW5NLOfe37VYAwruMBAK6ToRTkjkyXmbawkrJMgBXsBltLZQg1Kpp4k3pCmNqlPnfGVWPf81IpFagvohVM7zvTAv0SRc8VQ/WEz5PonL/VBjjtF8vFZge5VK9bzsKCx2WbbHGrI0TR1gbaFe00Po2z45NgALglKA2tKuQukPGmpbysOCocSpk1jBnmhB4W7BcccD+b+fxW9CoWtKhXVQDj260vpxomsl7IIXlGJ1xQgj+UoSs1TWd/0diB1R--cntjuJuDwFYi9uHR--SxqhHZSzaksuRpL6vC+jXg==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+// CheckoutController#show and the subscription management page. Registered in ./pages.ts.
+import { railsLoggedInUser } from "../auth/resolve.ts";
+import { CHECKOUT_OPTIONS } from "../controllers/checkout-pages.ts";
+import { MANAGE_OPTIONS } from "../controllers/subscription-pages.ts";
+import { authorize } from "../policies/authorize.ts";
+import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
+
+import { remoteIp } from "./audience/events.ts";
+import { sellerGuard } from "./audience/seller-guard.ts";
+import { checkoutArrival, checkoutStyle, paymentProps, requestParamsOf } from "./checkout/arrivals.ts";
+import { cartProps, checkoutProps, emptyCartPaymentProps, type CheckoutCart } from "./checkout/checkout.ts";
+import { listParams, upsellsPageProps } from "./checkout/upsells.ts";
+import { optional } from "./lazy-props.ts";
+import { NotPortedError } from "./not-ported.ts";
+import type { PageSpec } from "./pages.ts";
+import { sellerFontsCssSource } from "./settings/profile.ts";
+
+export const CHECKOUT_PAGES: Record<string, PageSpec> = {
+  // Checkout::UpsellsController#index. A page or sort Pagy and Upsell.sorted_by read differently is handed back by the guard.
+  "/checkout/upsells": {
+    component: "Checkout/Upsells/Index",
+    guard: (info) =>
+      sellerGuard(info, (context) => authorize(checkoutUpsellPolicy.index, context), {
+        afterAuthorize: async (context) =>
+          void (await upsellsPageProps(context.seller!.id, listParams(info.url.search.replace(/^\?/u, "")))),
+      }),
+    props: (_, { context, meta, url }) => {
+      meta.set({ title: "Upsells" });
+      return upsellsPageProps(context.currentSeller!.id, listParams(url.search.replace(/^\?/u, "")));
+    },
+  },
+  // The filter has handed back a cart with lines or stored codes, and whatever the URL adds that the port cannot prove.
+  "/checkout": {
+    component: "Checkout/Show",
+    options: CHECKOUT_OPTIONS,
+    analyticsEnabled: true,
+    props: async (_, action) => {
+      const user = railsLoggedInUser(action.context);
+      const ip = remoteIp(action.headers);
+      const arrival = await checkoutArrival(requestParamsOf(action.url.search.replace(/^\?/u, "")), user, ip);
+      return {
+        // A link that adds nothing for a closed or sold-out tier is handed back, and the filter hands back a cart with lines,
+        // so the notice and the owned lines are empty here.
+        sold_out_arrival: null,
+        owned_in_cart: [],
+        cart: cartProps((action.state.cart as CheckoutCart | null) ?? null),
+        checkout: await checkoutProps({
+          user,
+          remoteIp: ip,
+          protocol: action.config.protocol,
+          discoverDomain: action.config.discoverDomain,
+          arrival,
+        }),
+        checkout_payment: arrival.add_products.length === 0 ? emptyCartPaymentProps() : await paymentProps(arrival, ip),
+        // The filter hands back a partial reload that asks for it.
+        recommended_products: optional(() => {
+          throw new NotPortedError("Checkout recommended_products (RecommendedProducts::CheckoutService)");
+        }),
+        stripe_fonts_css_source: sellerFontsCssSource(),
+        checkout_style: await checkoutStyle(arrival),
+      };
+    },
+  },
+  // SubscriptionsController#manage: the access check answers (404, magic link redirect) or hands the request to Rails.
+  "/subscriptions/:subscription_id/manage": {
+    component: "Subscriptions/Manage",
+    options: MANAGE_OPTIONS,
+    props: () => {
+      throw new NotPortedError("Subscriptions/Manage (CheckoutPresenter#subscription_manager_props)");
+    },
+  },
+};

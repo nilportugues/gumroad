@@ -1,0 +1,1154 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a file that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find DropboxFile with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file that does not exist among others",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find DropboxFile with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file in progress",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file in progress among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "in_progress",
+                "https://example.com/files/2.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file2.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file in progress whose link expired",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file in progress whose link expires at the current second",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file in progress without an expiry",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                null,
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file in progress that was deleted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a successfully_uploaded file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "successfully_uploaded",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a successfully_uploaded file whose link expired",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "successfully_uploaded",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a cancelled file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "cancelled",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a cancelled file whose link expired",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "cancelled",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a failed file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "failed",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a failed file whose link expired",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "failed",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "deleted",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted file whose link expired",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "deleted",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T12:29:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file without a state",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file with an unknown state",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "archived",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "cancelled",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        "1"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file in progress id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find DropboxFile without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a file id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "in_progress",
+                "https://example.com/files/1.pdf",
+                {
+                  "$time": "2026-11-04T13:30:45.000000Z"
+                },
+                null,
+                1,
+                null,
+                null,
+                "{\"file_name\":\"file1.pdf\",\"file_size\":10}",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a file id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find DropboxFile with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `dropbox_files`.* FROM `dropbox_files` WHERE `dropbox_files`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "state",
+              "dropbox_url",
+              "expires_at",
+              "deleted_at",
+              "user_id",
+              "product_file_id",
+              "link_id",
+              "json_data",
+              "s3_url",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "TransferDropboxFileToS3Worker",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    }
+  ]
+}

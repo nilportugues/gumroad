@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Runs the Playwright suite (npm run e2e) inside the lane 3 container: chromium needs system libraries the host
+# usually lacks. Extra arguments go to `playwright test`. Needs `bin/e2e-up` first.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-common.sh"
+
+e2e_container_running || e2e_die "$E2E_CONTAINER is not running; run bin/e2e-up first"
+e2e_sync_code
+e2e_write_env
+if ! e2e_exec 'ls ~/.cache/ms-playwright/chromium-* >/dev/null 2>&1'; then
+  e2e_log "installing chromium and its system libraries in the container"
+  e2e_exec 'npx playwright install --with-deps chromium'
+fi
+if (($# > 0)); then
+  e2e_exec "npx playwright test $*"
+else
+  e2e_exec 'npm run e2e'
+fi

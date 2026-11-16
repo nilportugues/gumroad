@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "spec": "spec/requests/public_files_parity_spec.rb",
+  "example": "Public files GET /robots.txt lists the sitemaps on the Gumroad domain",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-02",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "custom_domains": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "domain": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "ssl_certificate_issued_at": "datetime",
+              "deleted_at": "datetime",
+              "state": "varchar",
+              "failed_verification_attempts_count": "int",
+              "product_id": "bigint",
+              "routable": "tinyint",
+              "routability_checked_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "domain": "hickle.reichert-macgyver.example",
+                "created_at": "<now-11m>",
+                "updated_at": "<now-11m>",
+                "ssl_certificate_issued_at": null,
+                "deleted_at": null,
+                "state": "unverified",
+                "failed_verification_attempts_count": 0,
+                "product_id": null,
+                "routable": null,
+                "routability_checked_at": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "custom_domains": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "robots_redis_namespace:sitemap_configs": {
+          "type": "string",
+          "value": "[\"Sitemap: https://cdn.example.com/sitemap/sitemap.xml.gz\"]"
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/robots.txt",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=3600, public, stale-while-revalidate=86400",
+          "content-type": "text/plain; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "body": "User-agent: *\nDisallow: /purchases/\n\nSitemap: https://cdn.example.com/sitemap/sitemap.xml.gz\n"
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

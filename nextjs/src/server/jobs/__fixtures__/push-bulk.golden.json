@@ -1,0 +1,1496 @@
+{
+  "generated_with": {
+    "ruby": "3.4.12",
+    "sidekiq": "7.3.4",
+    "sidekiq_unique_jobs": "8.0.10"
+  },
+  "now": 1761955200.123456,
+  "node_owned": [
+    "NodeOwnedBulkJob"
+  ],
+  "cases": [
+    {
+      "name": "Integer at that is not in the future still schedules",
+      "push": {
+        "class": "SendToElasticsearchWorker",
+        "args": [
+          [
+            1,
+            "update",
+            [
+              "is_recommendable"
+            ]
+          ],
+          [
+            2,
+            "update",
+            [
+              "sales_volume",
+              "total_fee_cents",
+              "past_year_fee_cents",
+              "is_recommendable"
+            ]
+          ]
+        ],
+        "queue": "low",
+        "at": 1761955200
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"is_recommendable\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:2dd8c62eb0a21376c446138f5396c8dd\"}",
+              1761955200.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:f84f3bb9f47019c3bcfc6020fe216687\"}",
+              1761955200.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd",
+              1761955200.0
+            ],
+            [
+              "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687",
+              1761955200.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "Integer at in the future",
+      "push": {
+        "class": "SendToElasticsearchWorker",
+        "args": [
+          [
+            1,
+            "update",
+            [
+              "is_recommendable"
+            ]
+          ],
+          [
+            2,
+            "update",
+            [
+              "sales_volume",
+              "total_fee_cents",
+              "past_year_fee_cents",
+              "is_recommendable"
+            ]
+          ]
+        ],
+        "queue": "low",
+        "at": 1761955260
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":660,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"is_recommendable\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:2dd8c62eb0a21376c446138f5396c8dd\"}",
+              1761955260.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":660,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:f84f3bb9f47019c3bcfc6020fe216687\"}",
+              1761955260.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd",
+              1761955260.0
+            ],
+            [
+              "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687",
+              1761955260.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "duplicate args in one bulk mark a trailing run",
+      "push": {
+        "class": "SendToElasticsearchWorker",
+        "args": [
+          [
+            1,
+            "update",
+            [
+              "is_recommendable"
+            ]
+          ],
+          [
+            1,
+            "update",
+            [
+              "is_recommendable"
+            ]
+          ],
+          [
+            2,
+            "update",
+            [
+              "sales_volume",
+              "total_fee_cents",
+              "past_year_fee_cents",
+              "is_recommendable"
+            ]
+          ]
+        ],
+        "queue": "low",
+        "at": 1761955260
+      },
+      "jids": [
+        "000000000000000000000002",
+        null,
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":660,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"is_recommendable\"]],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:2dd8c62eb0a21376c446138f5396c8dd\"}",
+              1761955260.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":660,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:f84f3bb9f47019c3bcfc6020fe216687\"}",
+              1761955260.0
+            ]
+          ],
+          "expires": false
+        },
+        "send_to_elasticsearch_worker:trailing:3be1df934351d41a09aec4e67cfb9079e2a4d4be": {
+          "type": "string",
+          "value": "1",
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd",
+              1761955260.0
+            ],
+            [
+              "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687",
+              1761955260.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": true
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "an existing lock drops that item only",
+      "before": [
+        [
+          "SendToElasticsearchWorker",
+          [
+            2,
+            "update",
+            [
+              "sales_volume",
+              "total_fee_cents",
+              "past_year_fee_cents",
+              "is_recommendable"
+            ]
+          ]
+        ]
+      ],
+      "push": {
+        "class": "SendToElasticsearchWorker",
+        "args": [
+          [
+            1,
+            "update",
+            [
+              "is_recommendable"
+            ]
+          ],
+          [
+            2,
+            "update",
+            [
+              "sales_volume",
+              "total_fee_cents",
+              "past_year_fee_cents",
+              "is_recommendable"
+            ]
+          ]
+        ],
+        "queue": "low",
+        "at": 1761955200
+      },
+      "jids": [
+        "000000000000000000000003",
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":10,\"queue\":\"default\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"class\":\"SendToElasticsearchWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:2da881480fb09dc07a67f5a1d315c160\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[1,\"update\",[\"is_recommendable\"]],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1,\"update\",[\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:2dd8c62eb0a21376c446138f5396c8dd\"}",
+              1761955200.0
+            ],
+            [
+              "{\"retry\":10,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executing\",\"on_conflict\":\"mark_for_trailing_run\",\"lock_ttl\":600,\"class\":\"SendToElasticsearchWorker\",\"args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2,\"update\",[\"sales_volume\",\"total_fee_cents\",\"past_year_fee_cents\",\"is_recommendable\"]],\"lock_digest\":\"uniquejobs:f84f3bb9f47019c3bcfc6020fe216687\"}",
+              1761955200.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:2da881480fb09dc07a67f5a1d315c160": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": true
+        },
+        "uniquejobs:2da881480fb09dc07a67f5a1d315c160:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": true
+        },
+        "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": true
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:2dd8c62eb0a21376c446138f5396c8dd",
+              1761955200.0
+            ],
+            [
+              "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687",
+              1761955200.0
+            ],
+            [
+              "uniquejobs:2da881480fb09dc07a67f5a1d315c160",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": true
+        },
+        "uniquejobs:f84f3bb9f47019c3bcfc6020fe216687:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": true
+        }
+      }
+    },
+    {
+      "name": "an Array of Float ats",
+      "push": {
+        "class": "UpdateUserBalanceStatsCacheWorker",
+        "args": [
+          [
+            7
+          ],
+          [
+            8
+          ],
+          [
+            9
+          ]
+        ],
+        "at": [
+          1761955200.123456,
+          1761955201.323456,
+          1761955202.523456
+        ]
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003",
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[7],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:884923e7bf1c211e2b905507d17e89e3\"}",
+              1761955200.123456
+            ],
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[8],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[8],\"lock_digest\":\"uniquejobs:03cd99782f649bc754824554c2cd738c\"}",
+              1761955201.323456
+            ],
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[9],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[9],\"lock_digest\":\"uniquejobs:d1a0585c50ea6e970d2d587c27606efe\"}",
+              1761955202.523456
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:03cd99782f649bc754824554c2cd738c": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:03cd99782f649bc754824554c2cd738c:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:884923e7bf1c211e2b905507d17e89e3": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:884923e7bf1c211e2b905507d17e89e3:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:d1a0585c50ea6e970d2d587c27606efe": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:d1a0585c50ea6e970d2d587c27606efe:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:884923e7bf1c211e2b905507d17e89e3",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:03cd99782f649bc754824554c2cd738c",
+              1761955201.323456
+            ],
+            [
+              "uniquejobs:d1a0585c50ea6e970d2d587c27606efe",
+              1761955202.523456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "an Array of Integer ats with a queue",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ],
+          [
+            4
+          ]
+        ],
+        "queue": "low",
+        "at": [
+          1762214400,
+          1762255200
+        ]
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[3],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:254905b683d66450e2267d23c42b1b68\"}",
+              1762214400.0
+            ],
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[4],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[4],\"lock_digest\":\"uniquejobs:dcf238f8a7573f0af5d652f63ee67112\"}",
+              1762255200.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:254905b683d66450e2267d23c42b1b68",
+              1762214400.0
+            ],
+            [
+              "uniquejobs:dcf238f8a7573f0af5d652f63ee67112",
+              1762255200.0
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "no at goes to the queue",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ],
+          [
+            4
+          ],
+          [
+            5
+          ]
+        ]
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003",
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[5],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[5],\"lock_digest\":\"uniquejobs:8a32144e89fb07b98fa108b8f61140a6\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[4],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[4],\"lock_digest\":\"uniquejobs:dcf238f8a7573f0af5d652f63ee67112\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[3],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:254905b683d66450e2267d23c42b1b68\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:8a32144e89fb07b98fa108b8f61140a6": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:8a32144e89fb07b98fa108b8f61140a6:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:254905b683d66450e2267d23c42b1b68",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:8a32144e89fb07b98fa108b8f61140a6",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:dcf238f8a7573f0af5d652f63ee67112",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "no at with a unique lock",
+      "push": {
+        "class": "UpdateUserBalanceStatsCacheWorker",
+        "args": [
+          [
+            7
+          ],
+          [
+            7
+          ],
+          [
+            8
+          ]
+        ]
+      },
+      "jids": [
+        "000000000000000000000002",
+        null,
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[8],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[8],\"lock_digest\":\"uniquejobs:03cd99782f649bc754824554c2cd738c\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[7],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[7],\"lock_digest\":\"uniquejobs:884923e7bf1c211e2b905507d17e89e3\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:03cd99782f649bc754824554c2cd738c": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:03cd99782f649bc754824554c2cd738c:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:884923e7bf1c211e2b905507d17e89e3": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:884923e7bf1c211e2b905507d17e89e3:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:03cd99782f649bc754824554c2cd738c",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:884923e7bf1c211e2b905507d17e89e3",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "batches of two",
+      "push": {
+        "class": "UpdateUserBalanceStatsCacheWorker",
+        "args": [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        "batch_size": 2,
+        "at": 1761955205
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003",
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa\"}",
+              1761955205.0
+            ],
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[2],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2],\"lock_digest\":\"uniquejobs:0d374f1dca1731f32aa03345aeda0872\"}",
+              1761955205.0
+            ],
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[3],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:9c07fddded9b25488f618464db960401\"}",
+              1761955205.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:9c07fddded9b25488f618464db960401": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:9c07fddded9b25488f618464db960401:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:0d374f1dca1731f32aa03345aeda0872",
+              1761955205.0
+            ],
+            [
+              "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa",
+              1761955205.0
+            ],
+            [
+              "uniquejobs:9c07fddded9b25488f618464db960401",
+              1761955205.0
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "perform_bulk with set queue",
+      "perform_bulk": {
+        "class": "PushNotificationWorker",
+        "set": {
+          "queue": "low"
+        },
+        "args": [
+          [
+            "a",
+            1
+          ],
+          [
+            "b",
+            2
+          ]
+        ]
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003"
+      ],
+      "error": null,
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"low\",\"backtrace\":true,\"class\":\"PushNotificationWorker\",\"args\":[\"b\",2],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":5,\"queue\":\"low\",\"backtrace\":true,\"class\":\"PushNotificationWorker\",\"args\":[\"a\",1],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "perform_bulk with batch_size",
+      "perform_bulk": {
+        "class": "UpdateUserBalanceStatsCacheWorker",
+        "args": [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        "batch_size": 2
+      },
+      "jids": [
+        "000000000000000000000002",
+        "000000000000000000000003",
+        "000000000000000000000004"
+      ],
+      "error": null,
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[3],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:9c07fddded9b25488f618464db960401\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[2],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2],\"lock_digest\":\"uniquejobs:0d374f1dca1731f32aa03345aeda0872\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateUserBalanceStatsCacheWorker\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:0d374f1dca1731f32aa03345aeda0872:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:9c07fddded9b25488f618464db960401": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:9c07fddded9b25488f618464db960401:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:0d374f1dca1731f32aa03345aeda0872",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:63c591adbd8f224e02c8c3ebadf27dfa",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:9c07fddded9b25488f618464db960401",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "a given jid is replaced",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ]
+        ],
+        "jid": "abc"
+      },
+      "jids": [
+        "000000000000000000000002"
+      ],
+      "error": null,
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[3],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:254905b683d66450e2267d23c42b1b68\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:254905b683d66450e2267d23c42b1b68",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "no args",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [],
+        "at": 1761955200
+      },
+      "jids": [],
+      "error": null,
+      "redis": {}
+    },
+    {
+      "name": "at 0 is truthy",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ]
+        ],
+        "at": 0
+      },
+      "jids": [
+        "000000000000000000000002"
+      ],
+      "error": null,
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[3],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:254905b683d66450e2267d23c42b1b68\"}",
+              0.0
+            ]
+          ],
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:254905b683d66450e2267d23c42b1b68",
+              0.0
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "Node-owned class goes to the bridge",
+      "push": {
+        "class": "NodeOwnedBulkJob",
+        "args": [
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            2
+          ]
+        ],
+        "at": 1761955230
+      },
+      "jids": [
+        null,
+        null,
+        null
+      ],
+      "error": null,
+      "redis": {
+        "nextjs:bridge:inbox": {
+          "type": "list",
+          "value": [
+            "{\"retry\":2,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"NodeOwnedBulkJob\",\"args\":[2],\"jid\":\"000000000000000000000004\",\"created_at\":1761955200.123456,\"at\":1761955230,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2],\"lock_digest\":\"uniquejobs:b65309f9574264418243974ef7e43b53\"}",
+            "{\"retry\":2,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"NodeOwnedBulkJob\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"at\":1761955230,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:883371b48a852bc44ee9d9611056f520\"}"
+          ],
+          "expires": false
+        },
+        "uniquejobs:883371b48a852bc44ee9d9611056f520": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:883371b48a852bc44ee9d9611056f520:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:b65309f9574264418243974ef7e43b53": {
+          "type": "string",
+          "value": "000000000000000000000004",
+          "expires": false
+        },
+        "uniquejobs:b65309f9574264418243974ef7e43b53:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000004": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Limit exceeded",
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:883371b48a852bc44ee9d9611056f520",
+              1761955230.0
+            ],
+            [
+              "uniquejobs:b65309f9574264418243974ef7e43b53",
+              1761955230.0
+            ]
+          ],
+          "expires": false
+        }
+      }
+    },
+    {
+      "name": "empty at Array",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ]
+        ],
+        "at": []
+      },
+      "jids": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Job 'at' must be a Numeric or an Array of Numeric timestamps"
+      },
+      "redis": {}
+    },
+    {
+      "name": "at Array of the wrong size",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ],
+          [
+            4
+          ]
+        ],
+        "at": [
+          1761955200
+        ]
+      },
+      "jids": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Job 'at' Array must have same size as 'args' Array"
+      },
+      "redis": {}
+    },
+    {
+      "name": "at that is not Numeric",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ]
+        ],
+        "at": "soon"
+      },
+      "jids": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Job 'at' must be a Numeric or an Array of Numeric timestamps"
+      },
+      "redis": {}
+    },
+    {
+      "name": "jid with several jobs",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ],
+          [
+            4
+          ]
+        ],
+        "jid": "abc"
+      },
+      "jids": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Explicitly passing 'jid' when pushing more than one job is not supported"
+      },
+      "redis": {}
+    },
+    {
+      "name": "a bad later slice raises after the first is pushed",
+      "push": {
+        "class": "UpdateCachedSalesRelatedProductsInfosJob",
+        "args": [
+          [
+            3
+          ],
+          [
+            4
+          ],
+          5
+        ],
+        "batch_size": 2
+      },
+      "jids": null,
+      "error": {
+        "class": "ArgumentError",
+        "message": "Bulk arguments must be an Array of Arrays: [[1], [2]]"
+      },
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[4],\"jid\":\"000000000000000000000003\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[4],\"lock_digest\":\"uniquejobs:dcf238f8a7573f0af5d652f63ee67112\",\"enqueued_at\":1761955200.123456}",
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"class\":\"UpdateCachedSalesRelatedProductsInfosJob\",\"args\":[3],\"jid\":\"000000000000000000000002\",\"created_at\":1761955200.123456,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[3],\"lock_digest\":\"uniquejobs:254905b683d66450e2267d23c42b1b68\",\"enqueued_at\":1761955200.123456}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68": {
+          "type": "string",
+          "value": "000000000000000000000002",
+          "expires": false
+        },
+        "uniquejobs:254905b683d66450e2267d23c42b1b68:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000002": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "messages": [
+            "Locked",
+            "Locked",
+            "Queued",
+            "Queued"
+          ],
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112": {
+          "type": "string",
+          "value": "000000000000000000000003",
+          "expires": false
+        },
+        "uniquejobs:dcf238f8a7573f0af5d652f63ee67112:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000003": "1761955200.123456"
+          },
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:254905b683d66450e2267d23c42b1b68",
+              1761955200.123456
+            ],
+            [
+              "uniquejobs:dcf238f8a7573f0af5d652f63ee67112",
+              1761955200.123456
+            ]
+          ],
+          "expires": false
+        }
+      }
+    }
+  ]
+}
